@@ -5,6 +5,9 @@
 // @description  Various functions for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
+// @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
+// @connect      services.itanna.io
 // @updateURL    https://raw.githubusercontent.com/ChrisRaven/Flywire-Utilities/main/utilities.user.js
 // @downloadURL  https://raw.githubusercontent.com/ChrisRaven/Flywire-Utilities/main/utilities.user.js
 // @homepageURL  https://github.com/ChrisRaven/Flywire-Utilities
@@ -13,14 +16,15 @@
 const DEV = false;
 
 
-if (globalThis.dockIsReady) return main()
+if (unsaveWindow.dockIsReady) return main()
 
 let script = document.createElement('script')
 script.src = DEV ? 'http://127.0.0.1:5501/FlyWire-Dock/Dock.js' : 'https://chrisraven.github.io/FlyWire-Dock/Dock.js'
 document.head.appendChild(script)
 
 let wait = setInterval(() => {
-  if (globalThis.dockIsReady) {
+  if (unsafeWindow.dockIsReady) {
+    unsafeWindow.GM_xmlhttpRequest = GM_xmlhttpRequest
     clearInterval(wait)
     main()
   }
@@ -36,6 +40,14 @@ function main() {
     html: generateHtml(),
     css: '',
     events: ''
+  })
+
+  document.getElementsByClassName('neuroglancer-rendered-data-panel')[0].addEventListener('dblclick', (e) => {
+    let currentCoords = document
+                        .querySelector('.neuroglancer-position-widget-input').value
+                        .split(',')
+                        .map(el => el.trim())
+    console.log(currentCoords)
   })
 }
 
