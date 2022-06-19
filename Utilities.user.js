@@ -8,9 +8,9 @@
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
 // @connect      services.itanna.io
-// @updateURL    https://raw.githubusercontent.com/ChrisRaven/Flywire-Utilities/main/utilities.user.js
-// @downloadURL  https://raw.githubusercontent.com/ChrisRaven/Flywire-Utilities/main/utilities.user.js
-// @homepageURL  https://github.com/ChrisRaven/Flywire-Utilities
+// @updateURL    https://raw.githubusercontent.com/ChrisRaven/FlyWire-Utilities/main/utilities.user.js
+// @downloadURL  https://raw.githubusercontent.com/ChrisRaven/FlyWire-Utilities/main/utilities.user.js
+// @homepageURL  https://github.com/ChrisRaven/FlyWire-Utilities
 // ==/UserScript==
 
 const DEV = false;
