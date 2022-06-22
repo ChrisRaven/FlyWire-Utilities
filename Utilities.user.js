@@ -16,7 +16,7 @@
 const DEV = false;
 
 
-if (unsaveWindow.dockIsReady) return main()
+if (unsafeWindow.dockIsReady) return main()
 
 let script = document.createElement('script')
 script.src = DEV ? 'http://127.0.0.1:5501/FlyWire-Dock/Dock.js' : 'https://chrisraven.github.io/FlyWire-Dock/Dock.js'
@@ -43,15 +43,55 @@ function main() {
   })
 
   document.getElementsByClassName('neuroglancer-rendered-data-panel')[0].addEventListener('dblclick', (e) => {
-    let currentCoords = document
-                        .querySelector('.neuroglancer-position-widget-input').value
-                        .split(',')
-                        .map(el => el.trim())
-    console.log(currentCoords)
+    let coords = document
+    .querySelector('.neuroglancer-mouse-position-widget')
+      .innerHTML
+      .split(',')
+      .map(el => el.trim().split(' ')[1])
+
+    let id = document.querySelector('div[data-type="segmentation_with_graph"] .neuroglancer-layer-item-value').textContent
+    id = id.split('+')[0]
+    // we save both leaves and roots. Leaves for permanent points of reference and roots for comparing with roots in the sidebar list
+    leaves[id] = coords
+    Dock.getRootId(id, rootId => {
+      roots[rootId] = coords
+    })
+  })
+
+  document.getElementsByClassName('neuroglancer-layer-side-panel')[0].addEventListener('contextmenu', e => {
+    if (!e.target.classList.contains('segment-button')) return
+
+    let segId = e.target.dataset.segId
+    let coords = roots[segId]
+    // if we don't have coords for a given rootId, we check every leave to see, if any of them didn't change their rootId in the meantime
+    if (!coords) {
+      console.log('roots we already have', roots)
+      for (const [leafId, coords] of Object.entries(leaves)) {
+        Dock.getRootId(leafId, rootId => {console.log('in getRootId', segId, rootId)
+          if (rootId === segId) {
+            roots[rootId] = coords
+            gotoSegment(roots[segId])
+          }
+        })
+      }
+    }
+    else {
+      gotoSegment(coords)
+    }
   })
 }
 
 
+let roots = {}
+let leaves = {}
+
+
+function gotoSegment(coords) {
+  coords = [coords[0] * 4, coords[1] * 4, coords[2] * 40]
+  viewer.layerSpecification.setSpatialCoordinates(coords)
+}
+
+
 function generateHtml() {
-  console.log('utilities')
+  // console.log('utilities')
 }
