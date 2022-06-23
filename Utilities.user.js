@@ -80,6 +80,12 @@ function saveToLS() {
   Dock.ls.set('utilities', {roots: roots, leaves: leaves, start: start}, true)
 }
 
+function clearLists() {
+  roots = {}
+  leaves = {}
+  Dock.ls.remove('utilities')
+}
+
 
 function dblClickHandler() {
   let mouseCoords = Dock.getCurrentMouseCoords()
@@ -141,6 +147,7 @@ function fetchHandler(e) {
     saveToLS()
   }
   else if (url.includes('proofreading_drive?')) {
+    clearLists()
     let coords = Dock.getCurrentCoords()
     let leafId = response.supervoxel_id
     leaves[leafId] = coords
