@@ -43,18 +43,13 @@ function main() {
   })
 
   document.getElementsByClassName('neuroglancer-rendered-data-panel')[0].addEventListener('dblclick', (e) => {
-    let coords = document
-    .querySelector('.neuroglancer-mouse-position-widget')
-      .innerHTML
-      .split(',')
-      .map(el => el.trim().split(' ')[1])
+    let mouseCoords = Dock.getCurrentMouseCoords()
+    let id = Dock.getHighlightedSupervoxelId()
 
-    let id = document.querySelector('div[data-type="segmentation_with_graph"] .neuroglancer-layer-item-value').textContent
-    id = id.split('+')[0]
     // we save both leaves and roots. Leaves for permanent points of reference and roots for comparing with roots in the sidebar list
-    leaves[id] = coords
+    leaves[id] = mouseCoords
     Dock.getRootId(id, rootId => {
-      roots[rootId] = coords
+      roots[rootId] = mouseCoords
     })
   })
 
