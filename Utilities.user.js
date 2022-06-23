@@ -39,54 +39,125 @@ function main() {
     id: 'utilities',
     html: generateHtml(),
     css: '',
-    events: ''
-  })
-
-  document.getElementsByClassName('neuroglancer-rendered-data-panel')[0].addEventListener('dblclick', (e) => {
-    let mouseCoords = Dock.getCurrentMouseCoords()
-    let id = Dock.getHighlightedSupervoxelId()
-
-    // we save both leaves and roots. Leaves for permanent points of reference and roots for comparing with roots in the sidebar list
-    leaves[id] = mouseCoords
-    Dock.getRootId(id, rootId => {
-      roots[rootId] = mouseCoords
-    })
-  })
-
-  document.getElementsByClassName('neuroglancer-layer-side-panel')[0].addEventListener('contextmenu', e => {
-    if (!e.target.classList.contains('segment-button')) return
-
-    let segId = e.target.dataset.segId
-    let coords = roots[segId]
-    // if we don't have coords for a given rootId, we check every leave to see, if any of them didn't change their rootId in the meantime
-    if (!coords) {
-      console.log('roots we already have', roots)
-      for (const [leafId, coords] of Object.entries(leaves)) {
-        Dock.getRootId(leafId, rootId => {console.log('in getRootId', segId, rootId)
-          if (rootId === segId) {
-            roots[rootId] = coords
-            gotoSegment(roots[segId])
-          }
-        })
+    events: {
+      '.neuroglancer-rendered-data-panel:first-of-type': {
+        dblclick: {
+          handler: dblClickHandler,
+          singleNode: true
+        }
+      },
+      '.neuroglancer-layer-side-panel': {
+        contextmenu: (e) => contextmenuHandler(e)
+      },
+      '#kk-utilities-jump-to-start': {
+        click: jumpToStart
+      },
+      document: {
+        fetch: e => fetchHandler(e)
       }
     }
-    else {
-      gotoSegment(coords)
-    }
   })
+
+  loadFromLS()
 }
 
 
 let roots = {}
 let leaves = {}
+let start
 
 
-function gotoSegment(coords) {
-  coords = [coords[0] * 4, coords[1] * 4, coords[2] * 40]
-  viewer.layerSpecification.setSpatialCoordinates(coords)
+function loadFromLS() {
+  let data = Dock.ls.get('utilities', true)
+
+  if (data) {
+    ({roots, leaves, start} = data)
+  }
+}
+
+
+function saveToLS() {
+  Dock.ls.set('utilities', {roots: roots, leaves: leaves, start: start}, true)
+}
+
+
+function dblClickHandler() {
+  let mouseCoords = Dock.getCurrentMouseCoords()
+  let id = Dock.getHighlightedSupervoxelId()
+
+  // we save both leaves and roots. Leaves for permanent points of reference and roots for comparing with roots in the sidebar list
+  leaves[id] = mouseCoords
+  Dock.getRootId(id, rootId => {
+    roots[rootId] = mouseCoords
+    saveToLS()
+  })
+}
+
+
+function contextmenuHandler(e) {
+  if (!e.target.classList.contains('segment-button')) return
+
+  let segId = e.target.dataset.segId
+  let coords = roots[segId]
+  // if we don't have coords for a given rootId, we check every leave to see, if any of them didn't change their rootId in the meantime
+  if (!coords) {
+    for (const [leafId, coords] of Object.entries(leaves)) {
+      Dock.getRootId(leafId, rootId => {
+        if (rootId === segId) {
+          roots[rootId] = coords
+          saveToLS()
+          Dock.jumpToCoords(coords)
+        }
+      })
+    }
+  }
+  else {
+    Dock.jumpToCoords(coords)
+  }
+}
+
+function fetchHandler(e) {
+  let response = e.detail.response
+  let body = e.detail && e.detail.params ? e.detail.params.body : null
+  let url = e.detail.url
+  if (response.code && response.code === 400) return console.error('Utilities: failed split')
+
+  if (url.includes('split?')) {
+    let voxelSize = Dock.getVoxelSize()
+
+    body = JSON.parse(body)
+    let point = body.sources[0]
+    let leafId = point[0]
+    point.shift()
+    let coords = Dock.divideVec3(point, voxelSize)
+    leaves[leafId] = coords
+
+    point = body.sinks[0]
+    leafId = point[0]
+    point.shift()
+    coords = Dock.divideVec3(point, voxelSize)
+    leaves[leafId] = coords
+
+    saveToLS()
+  }
+  else if (url.includes('proofreading_drive?')) {
+    let coords = Dock.getCurrentCoords()
+    let leafId = response.supervoxel_id
+    leaves[leafId] = coords
+    start = coords
+
+    saveToLS()
+  }
+}
+
+
+function jumpToStart() {
+  if (!start) return
+
+  Dock.jumpToCoords(start)
 }
 
 
 function generateHtml() {
-  // console.log('utilities')
+  return '<button id="kk-utilities-jump-to-start">Jump to start</button>'
 }
