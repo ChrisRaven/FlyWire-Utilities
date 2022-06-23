@@ -51,34 +51,33 @@ function main() {
       },
       '#kk-utilities-jump-to-start': {
         click: jumpToStart
-      },
-      document: {
-        fetch: e => fetchHandler(e)
       }
     }
   })
 
+  document.addEventListener('fetch', e => fetchHandler(e))
   loadFromLS()
 }
 
 
 let roots = {}
 let leaves = {}
-let start
+let startCoords
 
 
 function loadFromLS() {
   let data = Dock.ls.get('utilities', true)
 
   if (data) {
-    ({roots, leaves, start} = data)
+    ({roots, leaves, startCoords: startCoords} = data)
   }
 }
 
 
 function saveToLS() {
-  Dock.ls.set('utilities', {roots: roots, leaves: leaves, start: start}, true)
+  Dock.ls.set('utilities', {roots: roots, leaves: leaves, startCoords: startCoords}, true)
 }
+
 
 function clearLists() {
   roots = {}
@@ -126,7 +125,7 @@ function fetchHandler(e) {
   let response = e.detail.response
   let body = e.detail && e.detail.params ? e.detail.params.body : null
   let url = e.detail.url
-  if (response.code && response.code === 400) return console.error('Utilities: failed split')
+  if (response.code && response.code === 400) return console.error('Utilities: failed operation')
 
   if (url.includes('split?')) {
     let voxelSize = Dock.getVoxelSize()
@@ -143,15 +142,24 @@ function fetchHandler(e) {
     point.shift()
     coords = Dock.divideVec3(point, voxelSize)
     leaves[leafId] = coords
-
     saveToLS()
   }
   else if (url.includes('proofreading_drive?')) {
     clearLists()
-    let coords = Dock.getCurrentCoords()
+    let coords = response.ngl_coordinates
+
+    // source: webpack:///src/state.ts (FlyWire)
+    const coordsSpaced = coords.slice(1, -1).split(" ")
+    const xyz = []
+    for (const coord of coordsSpaced) {
+      if (coord === '') continue 
+      xyz.push(parseInt(coord))
+    }
+    coords = xyz
+
     let leafId = response.supervoxel_id
     leaves[leafId] = coords
-    start = coords
+    startCoords = coords
 
     saveToLS()
   }
@@ -159,9 +167,9 @@ function fetchHandler(e) {
 
 
 function jumpToStart() {
-  if (!start) return
+  if (!startCoords) return
 
-  Dock.jumpToCoords(start)
+  Dock.jumpToCoords(startCoords)
 }
 
 
