@@ -2,7 +2,7 @@
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
 // @version      0.1
-// @description  Various functions for FlyWire
+// @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
 // @grant        GM_xmlhttpRequest
@@ -56,6 +56,7 @@ function main() {
   })
 
   document.addEventListener('fetch', e => fetchHandler(e))
+  document.addEventListener('contextmenu', e => hideAllButHandler(e))
   loadFromLS()
 }
 
@@ -162,6 +163,23 @@ function fetchHandler(e) {
     startCoords = coords
 
     saveToLS()
+  }
+}
+
+
+function hideAllButHandler(e) {
+  let target = e.target
+
+  if (!target.classList.contains('segment-checkbox')) return
+
+  document.querySelectorAll('.segment-checkbox').forEach(el => {
+    if (el.checked && el !== target && el.title !== 'Uncheck to hide all segments') {
+      el.click()
+    }
+  })
+
+  if (!target.checked) {
+    target.click()
   }
 }
 
