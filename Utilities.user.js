@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.1
+// @version      0.2
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -38,7 +38,7 @@ function main() {
     name: 'Utilities',
     id: 'utilities',
     html: generateHtml(),
-    css: '',
+    css: '#utilities { text-align: center; }',
     events: {
       '.neuroglancer-rendered-data-panel:first-of-type': {
         dblclick: {
@@ -51,6 +51,9 @@ function main() {
       },
       '#kk-utilities-jump-to-start': {
         click: jumpToStart
+      },
+      '.kk-utilities-res': {
+        click: e => changeResolution(e.target.dataset.resolution)
       }
     }
   })
@@ -153,7 +156,7 @@ function fetchHandler(e) {
     const coordsSpaced = coords.slice(1, -1).split(" ")
     const xyz = []
     for (const coord of coordsSpaced) {
-      if (coord === '') continue 
+      if (coord === '') continue
       xyz.push(parseInt(coord))
     }
     coords = xyz
@@ -191,6 +194,19 @@ function jumpToStart() {
 }
 
 
+function changeResolution(res) {
+  viewer.layerManager.managedLayers.forEach(layer => {
+    if (!layer || !layer.layer_ || !layer.layer_.sliceViewRenderScaleTarget) return
+
+    layer.layer_.sliceViewRenderScaleTarget.restoreState(res)
+  })
+}
+
+
 function generateHtml() {
-  return '<button id="kk-utilities-jump-to-start">Jump to start</button>'
+  return /*html*/`
+    <button id="kk-utilities-jump-to-start">Jump to start</button><br />
+    <button class="kk-utilities-res" data-resolution="1">1px</button>
+    <button class="kk-utilities-res" data-resolution="5">5px</button>
+  `
 }
