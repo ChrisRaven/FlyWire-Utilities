@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.2.0.1
+// @version      0.3
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -44,7 +44,8 @@ function main() {
         dblclick: {
           handler: dblClickHandler,
           singleNode: true
-        }
+        },
+        contextmenu: (e) => deleteSplitpoint(e)
       },
       '.neuroglancer-layer-side-panel': {
         contextmenu: (e) => contextmenuHandler(e)
@@ -200,6 +201,45 @@ function changeResolution(res) {
 
     layer.layer_.sliceViewRenderScaleTarget.restoreState(res)
   })
+}
+
+
+function deleteSplitpoint(e) {
+  if (!e.ctrlKey) return
+
+  let id = Dock.getHighlightedSupervoxelId()
+  let graphLayer = viewer.selectedLayer.layer.layer.graphOperationLayerState.value
+  let refId = null
+  let source = null
+
+  if (!graphLayer) return
+
+  [...graphLayer.annotationLayerStateA.value.source].forEach(el => {
+    if (el.description === id) {
+      refId = el.id
+      source = 'A'
+      return false
+    }
+  })
+  
+  if (!refId) {
+    [...graphLayer.annotationLayerStateB.value.source].forEach(el => {
+      if (el.description === id) {
+        refId = el.id
+        source = 'B'
+        return false
+      }
+    })
+  }
+
+  if (!refId) return
+
+  let annotationLayer = source === 'A' ? graphLayer.annotationLayerStateA : graphLayer.annotationLayerStateB
+  let ref = annotationLayer.value.source.getReference(refId)
+
+  if (!ref) return
+
+  annotationLayer.value.source.delete(ref)
 }
 
 
