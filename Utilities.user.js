@@ -52,7 +52,8 @@ function main() {
       },
       '.kk-utilities-res': {
         click: e => changeResolution(e.target.dataset.resolution)
-      }
+      },
+      'kk-utilities-add-annotation-at-start': addAnnotationAtStartChanged
     }
   })
 
@@ -62,29 +63,27 @@ function main() {
 }
 
 
-let roots = {}
-let leaves = {}
-let startCoords
+let saveable = { roots: {}, leaves: {}, startCoords: null, addAnnotationAtStartState: false}
 
 
 function loadFromLS() {
   let data = Dock.ls.get('utilities', true)
 
   if (data) {
-    ({roots, leaves, startCoords: startCoords} = data)
+    saveable = data
   }
 }
 
 
 function saveToLS() {
-  Dock.ls.set('utilities', {roots: roots, leaves: leaves, startCoords: startCoords}, true)
+  Dock.ls.set('utilities', saveable, true)
 }
 
 
 function clearLists() {
-  roots = {}
-  leaves = {}
-  Dock.ls.remove('utilities')
+  saveable.roots = {}
+  saveable.leaves = {}
+  saveToLS()
 }
 
 
@@ -93,9 +92,9 @@ function dblClickHandler() {
   let id = Dock.getHighlightedSupervoxelId()
 
   // we save both leaves and roots. Leaves for permanent points of reference and roots for comparing with roots in the sidebar list
-  leaves[id] = mouseCoords
+  saveable.leaves[id] = mouseCoords
   Dock.getRootId(id, rootId => {
-    roots[rootId] = mouseCoords
+    saveable.roots[rootId] = mouseCoords
     saveToLS()
   })
 }
@@ -105,13 +104,13 @@ function contextmenuHandler(e) {
   if (!e.target.classList.contains('segment-button')) return
 
   let segId = e.target.dataset.segId
-  let coords = roots[segId]
+  let coords = saveable.roots[segId]
   // if we don't have coords for a given rootId, we check every leave to see, if any of them didn't change their rootId in the meantime
   if (!coords) {
     for (const [leafId, coords] of Object.entries(leaves)) {
       Dock.getRootId(leafId, rootId => {
         if (rootId === segId) {
-          roots[rootId] = coords
+          saveable.roots[rootId] = coords
           saveToLS()
           Dock.jumpToCoords(coords)
         }
@@ -137,13 +136,13 @@ function fetchHandler(e) {
     let leafId = point[0]
     point.shift()
     let coords = Dock.divideVec3(point, voxelSize)
-    leaves[leafId] = coords
+    saveable.leaves[leafId] = coords
 
     point = body.sinks[0]
     leafId = point[0]
     point.shift()
     coords = Dock.divideVec3(point, voxelSize)
-    leaves[leafId] = coords
+    saveable.leaves[leafId] = coords
     saveToLS()
   }
   else if (url.includes('proofreading_drive?')) {
@@ -160,12 +159,15 @@ function fetchHandler(e) {
     coords = xyz
 
     let leafId = response.supervoxel_id
-    leaves[leafId] = coords
-    startCoords = coords
+    saveable.leaves[leafId] = coords
+    saveable.startCoords = coords
+
+    addAnnotationAtStart()
 
     saveToLS()
   }
 }
+
 
 
 function hideAllButHandler(e) {
@@ -186,9 +188,9 @@ function hideAllButHandler(e) {
 
 
 function jumpToStart() {
-  if (!startCoords) return
+  if (!saveable.startCoords) return
 
-  Dock.jumpToCoords(startCoords)
+  Dock.jumpToCoords(saveable.startCoords)
 }
 
 
@@ -240,12 +242,26 @@ function deleteSplitpoint(e) {
 }
 
 
+function addAnnotationAtStart() {
+  // remove previous annotation if exists
+  if (!document.getElementById('kk-utilities-add-annotation-at-start').checked) return
+
+  // add new annotation
+}
+
+
+function addAnnotationAtStartChanged() {
+  saveable.addAnnotationAtStartState = document.getElementById('kk-utilities-add-annotation-at-start').checked
+  saveToLS()
+}
+
+
 function generateHtml() {
   return /*html*/`
     <button id="kk-utilities-jump-to-start">Jump to start</button><br />
     <label>
       <input type="checkbox" id="kk-utilities-add-annotation-at-start">
-      Add annotation at start
+      Add point at start
     </label><br>
     <button class="kk-utilities-res" data-resolution="1">1px</button>
     <button class="kk-utilities-res" data-resolution="5">5px</button>
