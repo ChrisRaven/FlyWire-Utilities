@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.3.0.1
+// @version      0.4
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -53,17 +53,26 @@ function main() {
       '.kk-utilities-res': {
         click: e => changeResolution(e.target.dataset.resolution)
       },
-      'kk-utilities-add-annotation-at-start': addAnnotationAtStartChanged
+      '#kk-utilities-add-annotation-at-start': {
+        click: addAnnotationAtStartChanged
+      }
     }
   })
 
   document.addEventListener('fetch', e => fetchHandler(e))
   document.addEventListener('contextmenu', e => hideAllButHandler(e))
   loadFromLS()
+  initStateForAddAnnotationAtStart()
 }
 
 
-let saveable = { roots: {}, leaves: {}, startCoords: null, addAnnotationAtStartState: false}
+let saveable = {
+  roots: {},
+  leaves: {},
+  startCoords: null,
+  addAnnotationAtStartState: false,
+  startAnnotationId: 0
+}
 
 
 function loadFromLS() {
@@ -243,10 +252,22 @@ function deleteSplitpoint(e) {
 
 
 function addAnnotationAtStart() {
-  // remove previous annotation if exists
   if (!document.getElementById('kk-utilities-add-annotation-at-start').checked) return
+  
+  // remove previous annotation if exists
+  if (saveable.startAnnotationId) {
+    Dock.annotations.remove(saveable.startAnnotationId)
+  }
 
-  // add new annotation
+  let refId = Dock.annotations.add(saveable.startCoords, 0, 'START')
+
+  saveable.startAnnotationId = refId
+  saveToLS()
+}
+
+
+function initStateForAddAnnotationAtStart() {
+  document.getElementById('kk-utilities-add-annotation-at-start').checked = saveable.addAnnotationAtStartState
 }
 
 
