@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.3
+// @version      0.3.0.1
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -13,13 +13,10 @@
 // @homepageURL  https://github.com/ChrisRaven/FlyWire-Utilities
 // ==/UserScript==
 
-const DEV = false;
-
-
 if (unsafeWindow.dockIsReady) return main()
 
 let script = document.createElement('script')
-script.src = DEV ? 'http://127.0.0.1:5501/FlyWire-Dock/Dock.js' : 'https://chrisraven.github.io/FlyWire-Dock/Dock.js'
+script.src = typeof DEV !== 'undefined' ? 'http://127.0.0.1:5501/FlyWire-Dock/Dock.js' : 'https://chrisraven.github.io/FlyWire-Dock/Dock.js'
 document.head.appendChild(script)
 
 let wait = setInterval(() => {
@@ -246,6 +243,10 @@ function deleteSplitpoint(e) {
 function generateHtml() {
   return /*html*/`
     <button id="kk-utilities-jump-to-start">Jump to start</button><br />
+    <label>
+      <input type="checkbox" id="kk-utilities-add-annotation-at-start">
+      Add annotation at start
+    </label><br>
     <button class="kk-utilities-res" data-resolution="1">1px</button>
     <button class="kk-utilities-res" data-resolution="5">5px</button>
   `
