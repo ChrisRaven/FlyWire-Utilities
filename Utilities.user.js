@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.4
+// @version      0.5
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -29,14 +29,19 @@ let wait = setInterval(() => {
 }, 100)
 
 
+// addon prefix - used in all nodes, that have to have an ID
+let ap = 'kk-utilities-'
+
 function main() {
   let dock = new Dock()
+  console.log('in main', saveable.options)
+
 
   dock.addAddon({
     name: 'Utilities',
-    id: 'utilities',
+    id: ap,
     html: generateHtml(),
-    css: '#utilities { text-align: center; }',
+    css: /*css*/`#${ap} { text-align: center; }`,
     events: {
       '.neuroglancer-rendered-data-panel:first-of-type': {
         dblclick: {
@@ -48,31 +53,71 @@ function main() {
       '.neuroglancer-layer-side-panel': {
         contextmenu: (e) => contextmenuHandler(e)
       },
-      '#kk-utilities-jump-to-start': {
+      [`#${ap}jump-to-start`]: {
         click: jumpToStart
       },
-      '.kk-utilities-res': {
+      [`.${ap}res`]: {
         click: e => changeResolution(e.target.dataset.resolution)
       },
-      '#kk-utilities-add-annotation-at-start': {
+      [`#${ap}add-annotation-at-start`]: {
         click: addAnnotationAtStartChanged
-      }
+      },
+      [`#${ap}options`]: {
+        click: () => optionsDialog.show()
+      },
+      // [`#${ap}options-dialog`]: {
+      //   click: (e) => optionsDialogToggleFeatures(e)
+      // }
     }
   })
 
   document.addEventListener('fetch', e => fetchHandler(e))
   document.addEventListener('contextmenu', e => hideAllButHandler(e))
+  // we have to add the listener to the document, because the dialog's html doesn't exist
+  // at the moment, when the listener is being assigned
+  document.addEventListener('click', e => optionsDialogToggleFeatures(e))
   loadFromLS()
-  initStateForAddAnnotationAtStart()
+  console.log('before init', saveable.options)
+  let optionsDialog = Dock.dialog(optionsDialogSettings())
+  initFields()
+
 }
 
+
+const optPrefix = ap + 'options-toggle-'
+
+const defaultOptions = {
+  [optPrefix + 'jump-to-start']: {
+    selector: `#${ap}jump-to-start`,
+    text: 'Jump to start',
+    state: true
+  },
+  [optPrefix + 'add-point-at-start']: {
+    selector: `#${ap}add-annotation-at-start-wrapper`,
+    text: 'Add point at start',
+    state: true
+  },
+  [optPrefix + 'remove-points-at-start']: {
+    selector: `#${ap}remove-annotations-at-start-wrapper`,
+    text: 'Remove points at start',
+    state: true
+  },
+  [optPrefix + 'resolution-buttons']: {
+    selector: `.${ap}res`,
+    text: 'Resolution buttons',
+    state: true
+  }
+}
 
 let saveable = {
   roots: {},
   leaves: {},
   startCoords: null,
   addAnnotationAtStartState: false,
-  startAnnotationId: 0
+  removeAnnotationsAtStartState: false,
+  startAnnotationId: 0,
+  visibleFeatures: [],
+  options: {}
 }
 
 
@@ -82,6 +127,11 @@ function loadFromLS() {
   if (data) {
     saveable = data
   }
+
+  if (saveable.options && Object.entries(saveable.options).length === 0 || !saveable.options) {
+    saveable.options = defaultOptions
+  }
+  console.log('loaded', saveable.options)
 }
 
 
@@ -172,6 +222,7 @@ function fetchHandler(e) {
     saveable.leaves[leafId] = coords
     saveable.startCoords = coords
 
+    removeAnnotationsAtStart()
     addAnnotationAtStart()
 
     saveToLS()
@@ -253,7 +304,7 @@ function deleteSplitpoint(e) {
 
 
 function addAnnotationAtStart() {
-  if (!document.getElementById('kk-utilities-add-annotation-at-start').checked) return
+  if (!document.getElementById(`${ap}add-annotation-at-start`).checked) return
   
   // remove previous annotation if exists
   if (saveable.startAnnotationId) {
@@ -267,25 +318,120 @@ function addAnnotationAtStart() {
 }
 
 
-function initStateForAddAnnotationAtStart() {
-  document.getElementById('kk-utilities-add-annotation-at-start').checked = saveable.addAnnotationAtStartState
+function removeAnnotationsAtStart() {
+  if (!document.getElementById(`${ap}remove-annotations-at-start`).checked) return
+}
+
+
+function initFields() {
+  document.getElementById(`${ap}add-annotation-at-start`).checked = saveable.addAnnotationAtStartState
+  document.getElementById(`${ap}remove-annotations-at-start`).checked = saveable.removeAnnotationsAtStartState
+  initOptions()
+}
+
+function initOptions() {
+  if (!saveable.options) return
+
+  for (const checkboxId of Object.keys(saveable.options)) {
+    optionsDialogToggleFeature(checkboxId)
+  }
 }
 
 
 function addAnnotationAtStartChanged() {
-  saveable.addAnnotationAtStartState = document.getElementById('kk-utilities-add-annotation-at-start').checked
+  saveable.addAnnotationAtStartState = document.getElementById(`${ap}add-annotation-at-start`).checked
+  saveToLS()
+}
+
+function removeAnnotationsAtStartChanged() {
+  saveable.removeAnnotationsAtStartState = document.getElementById(`${ap}remove-annotations-at-start`).checked
+}
+
+
+function generateOptionsHtml() {console.log(saveable.options, Object.entries(saveable.options))
+  let html = ''
+  for (const [checkboxId, option] of Object.entries(saveable.options)) {console.log('in loop')
+    html += `<label><input type="checkbox" id="${checkboxId}" ${option.state ? 'checked' : ''}>${option.text}</label><br />`
+  }
+
+  return html
+}
+
+
+function optionsDialogSettings() {
+  let prefix = ap + 'options-'
+  let dialogId = ap + 'options-dialog'
+console.log('in settings', saveable.options)
+  return {
+    html: generateOptionsHtml(),
+    css: /*css*/`
+      #${dialogId} label {
+        font-size: 13px;
+        padding-bottom: 5px;
+        display: inline-block;
+      }
+
+      #${dialogId} input[type="checkbox"] {
+        margin-right: 15px;
+      }
+    `,
+    id: dialogId,
+    okCallback: () => {},
+    okLabel: 'Close'
+  }
+}
+
+
+function optionsDialogToggleFeature(checkboxId) {
+  let checkbox = document.getElementById(checkboxId)
+  let featureSelector = saveable.options[checkboxId].selector
+  let feature = document.querySelectorAll(featureSelector)
+
+  if (!feature || !checkbox) return
+
+  let state = checkbox.checked
+  feature.forEach(el => el.style.display = state ? el.dataset.display : 'none')
+
+  return state
+}
+
+
+function optionsDialogToggleFeatures(e) {
+  let dialogId = ap + 'options-dialog'
+  if (e.target.type !== 'checkbox' && e.target.tagName !== 'LABEL') return
+  if (e.target.parentNode.parentNode.id !== dialogId && e.target.parentNode.parentNode.parentNode.id !== dialogId) return
+
+  let prefix = ap + 'options-toggle-'
+  let checkboxId
+  let featureSelector
+  if (e.target.type === 'checkbox') {
+    checkboxId = e.target.id
+  }
+  else if (e.target.tagName === 'LABEL') {
+    checkboxId = e.target.firstChild.id
+  }
+  else return
+
+  let state = optionsDialogToggleFeature(checkboxId)
+  saveable.options[checkboxId].state = state
   saveToLS()
 }
 
 
+
 function generateHtml() {
   return /*html*/`
-    <button id="kk-utilities-jump-to-start">Jump to start</button><br />
-    <label>
+    <button id="kk-utilities-jump-to-start" data-display="inline-block">Jump to start</button><br />
+    <label data-display="inline-block" id="kk-utilities-add-annotation-at-start-wrapper">
       <input type="checkbox" id="kk-utilities-add-annotation-at-start">
       Add point at start
     </label><br>
-    <button class="kk-utilities-res" data-resolution="1">1px</button>
-    <button class="kk-utilities-res" data-resolution="5">5px</button>
+    <label data-display="inline-block" id="kk-utilities-remove-annotations-at-start-wrapper">
+      <input type="checkbox" id="kk-utilities-remove-annotations-at-start">
+      Remove points at start
+    </label><br>
+    <button class="kk-utilities-res" data-resolution="1" data-display="inline-block">1px</button>
+    <button class="kk-utilities-res" data-resolution="5" data-display="inline-block">5px</button><br>
+    <button id="kk-utilities-options">Options</button>
   `
 }
