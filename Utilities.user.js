@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.5
+// @version      0.5.1
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -42,7 +42,22 @@ function main() {
     name: 'Utilities',
     id: ap,
     html: generateHtml(),
-    css: /*css*/`#${ap} { text-align: center; }`,
+    css: /*css*/`
+      #${ap} {
+        text-align: center;
+      }
+
+      #${ap}jump-to-start,
+      #${ap}add-annotation-at-start-wrapper,
+      #${ap}remove-annotations-at-start-wrapper,
+      #${ap}res-wrapper {
+        display: block;
+      }
+
+      #${ap}jump-to-start {
+        margin: auto;
+      }
+      `,
     events: {
       '.neuroglancer-rendered-data-panel:first-of-type': {
         dblclick: {
@@ -104,7 +119,7 @@ const defaultOptions = {
     state: true
   },
   [optPrefix + 'resolution-buttons']: {
-    selector: `.${ap}res`,
+    selector: `#${ap}res-wrapper`,
     text: 'Resolution buttons',
     state: true
   }
@@ -460,17 +475,19 @@ function optionsDialogToggleFeatures(e) {
 
 function generateHtml() {
   return /*html*/`
-    <button id="kk-utilities-jump-to-start" data-display="inline-block" title="Jump to point, at which you've started this cell">Jump to start</button><br />
-    <label data-display="inline-block" id="kk-utilities-add-annotation-at-start-wrapper" title="Adds annotation at the starting point of the cell">
+    <button id="kk-utilities-jump-to-start" data-display="block" title="Jump to point, at which you've started this cell">Jump to start</button>
+    <label data-display="block" id="kk-utilities-add-annotation-at-start-wrapper" title="Adds annotation at the starting point of the cell">
       <input type="checkbox" id="kk-utilities-add-annotation-at-start">
       Add point at start
-    </label><br>
-    <label data-display="inline-block" id="kk-utilities-remove-annotations-at-start-wrapper" title="Removes all annotations, when a new cell has been claimed">
+    </label>
+    <label data-display="block" id="kk-utilities-remove-annotations-at-start-wrapper" title="Removes all annotations, when a new cell has been claimed">
       <input type="checkbox" id="kk-utilities-remove-annotations-at-start">
       Remove points at start
-    </label><br>
-    <button class="kk-utilities-res" data-resolution="1" data-display="inline-block" title="Changes slides resolution to 1px">1px</button>
-    <button class="kk-utilities-res" data-resolution="5" data-display="inline-block" title="Changes slides resolution to 5px">5px</button><br>
+    </label>
+    <div id="kk-utilities-res-wrapper" data-display="block">
+      <button class="kk-utilities-res" data-resolution="1" title="Changes slides resolution to 1px">1px</button>
+      <button class="kk-utilities-res" data-resolution="5" title="Changes slides resolution to 5px">5px</button>
+    </div>
     <button id="kk-utilities-options" title="Options to show or hide elements">Options</button>
   `
 }
