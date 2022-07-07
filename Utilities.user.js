@@ -33,9 +33,10 @@ let wait = setInterval(() => {
 let ap = 'kk-utilities-'
 
 function main() {
-  let dock = new Dock()
-  console.log('in main', saveable.options)
+  loadFromLS()
+  let optionsDialog = Dock.dialog(optionsDialogSettings())
 
+  let dock = new Dock()
 
   dock.addAddon({
     name: 'Utilities',
@@ -62,23 +63,23 @@ function main() {
       [`#${ap}add-annotation-at-start`]: {
         click: addAnnotationAtStartChanged
       },
+      [`#${ap}remove-annotations-at-start`]: {
+        click: removeAnnotationsAtStartChanged
+      },
       [`#${ap}options`]: {
         click: () => optionsDialog.show()
       },
-      // [`#${ap}options-dialog`]: {
-      //   click: (e) => optionsDialogToggleFeatures(e)
-      // }
+      [`#${ap}options-dialog`]: {
+        click: (e) => optionsDialogToggleFeatures(e)
+      },
+      '.neuroglancer-viewer-top-row': {
+        click: removeAnnotationsAtStart
+      }
     }
   })
 
   document.addEventListener('fetch', e => fetchHandler(e))
   document.addEventListener('contextmenu', e => hideAllButHandler(e))
-  // we have to add the listener to the document, because the dialog's html doesn't exist
-  // at the moment, when the listener is being assigned
-  document.addEventListener('click', e => optionsDialogToggleFeatures(e))
-  loadFromLS()
-  console.log('before init', saveable.options)
-  let optionsDialog = Dock.dialog(optionsDialogSettings())
   initFields()
 
 }
@@ -131,7 +132,6 @@ function loadFromLS() {
   if (saveable.options && Object.entries(saveable.options).length === 0 || !saveable.options) {
     saveable.options = defaultOptions
   }
-  console.log('loaded', saveable.options)
 }
 
 
@@ -189,44 +189,54 @@ function fetchHandler(e) {
   if (response.code && response.code === 400) return console.error('Utilities: failed operation')
 
   if (url.includes('split?')) {
-    let voxelSize = Dock.getVoxelSize()
+    saveSegmentsAfterSplit(body)
 
-    body = JSON.parse(body)
-    let point = body.sources[0]
-    let leafId = point[0]
-    point.shift()
-    let coords = Dock.divideVec3(point, voxelSize)
-    saveable.leaves[leafId] = coords
-
-    point = body.sinks[0]
-    leafId = point[0]
-    point.shift()
-    coords = Dock.divideVec3(point, voxelSize)
-    saveable.leaves[leafId] = coords
     saveToLS()
   }
   else if (url.includes('proofreading_drive?')) {
-    clearLists()
-    let coords = response.ngl_coordinates
-
-    // source: webpack:///src/state.ts (FlyWire)
-    const coordsSpaced = coords.slice(1, -1).split(" ")
-    const xyz = []
-    for (const coord of coordsSpaced) {
-      if (coord === '') continue
-      xyz.push(parseInt(coord))
-    }
-    coords = xyz
-
-    let leafId = response.supervoxel_id
-    saveable.leaves[leafId] = coords
-    saveable.startCoords = coords
-
+    saveSegmentAfterClaim(response)
     removeAnnotationsAtStart()
     addAnnotationAtStart()
 
     saveToLS()
   }
+}
+
+
+function saveSegmentAfterClaim(response) {
+  clearLists()
+  let coords = response.ngl_coordinates
+
+  // source: webpack:///src/state.ts (FlyWire)
+  const coordsSpaced = coords.slice(1, -1).split(" ")
+  const xyz = []
+  for (const coord of coordsSpaced) {
+    if (coord === '') continue
+    xyz.push(parseInt(coord))
+  }
+  coords = xyz
+
+  let leafId = response.supervoxel_id
+  saveable.leaves[leafId] = coords
+  saveable.startCoords = coords
+}
+
+
+function saveSegmentsAfterSplit(body) {
+  let voxelSize = Dock.getVoxelSize()
+
+  body = JSON.parse(body)
+  let point = body.sources[0]
+  let leafId = point[0]
+  point.shift()
+  let coords = Dock.divideVec3(point, voxelSize)
+  saveable.leaves[leafId] = coords
+
+  point = body.sinks[0]
+  leafId = point[0]
+  point.shift()
+  coords = Dock.divideVec3(point, voxelSize)
+  saveable.leaves[leafId] = coords
 }
 
 
@@ -318,8 +328,36 @@ function addAnnotationAtStart() {
 }
 
 
+function removeLayer(index) {
+  let manager = viewer.layerManager
+  let layer = manager.managedLayers[index]
+
+  layer.layerChanged.remove(manager.layersChanged.dispatch)
+  layer.readyStateChanged.remove(manager.readyStateChanged.dispatch)
+  layer.specificationChanged.remove(manager.specificationChanged.dispatch)
+  layer.dispose()
+  manager.managedLayers.splice(index, 1)
+  manager.layerSet.delete(layer)
+  manager.layersChanged.dispatch()
+}
+
+
 function removeAnnotationsAtStart() {
   if (!document.getElementById(`${ap}remove-annotations-at-start`).checked) return
+
+  let indexes = []  
+  // with this first loop we only collect indexes, because removing elements with given indexes
+  // inside the loop, will shorten the array, over which the loop iterates,
+  // and we wouldn't be able to iterate over the whole array
+  viewer.layerManager.managedLayers.forEach((layer, index) => {
+    if (layer.initialSpecification.type === 'annotation') {
+      indexes.push(index)
+    }
+  })
+  // we are reversing the indexes to start removing layers from the last one
+  // otherwise, each removing will shift all the next layers to the left
+  // and the indexes will no longer match
+  indexes.reverse().forEach(index => removeLayer(index))
 }
 
 
@@ -345,12 +383,13 @@ function addAnnotationAtStartChanged() {
 
 function removeAnnotationsAtStartChanged() {
   saveable.removeAnnotationsAtStartState = document.getElementById(`${ap}remove-annotations-at-start`).checked
+  saveToLS()
 }
 
 
-function generateOptionsHtml() {console.log(saveable.options, Object.entries(saveable.options))
+function generateOptionsHtml() {
   let html = ''
-  for (const [checkboxId, option] of Object.entries(saveable.options)) {console.log('in loop')
+  for (const [checkboxId, option] of Object.entries(saveable.options)) {
     html += `<label><input type="checkbox" id="${checkboxId}" ${option.state ? 'checked' : ''}>${option.text}</label><br />`
   }
 
@@ -361,7 +400,7 @@ function generateOptionsHtml() {console.log(saveable.options, Object.entries(sav
 function optionsDialogSettings() {
   let prefix = ap + 'options-'
   let dialogId = ap + 'options-dialog'
-console.log('in settings', saveable.options)
+
   return {
     html: generateOptionsHtml(),
     css: /*css*/`
@@ -421,17 +460,17 @@ function optionsDialogToggleFeatures(e) {
 
 function generateHtml() {
   return /*html*/`
-    <button id="kk-utilities-jump-to-start" data-display="inline-block">Jump to start</button><br />
-    <label data-display="inline-block" id="kk-utilities-add-annotation-at-start-wrapper">
+    <button id="kk-utilities-jump-to-start" data-display="inline-block" title="Jump to point, at which you've started this cell">Jump to start</button><br />
+    <label data-display="inline-block" id="kk-utilities-add-annotation-at-start-wrapper" title="Adds annotation at the starting point of the cell">
       <input type="checkbox" id="kk-utilities-add-annotation-at-start">
       Add point at start
     </label><br>
-    <label data-display="inline-block" id="kk-utilities-remove-annotations-at-start-wrapper">
+    <label data-display="inline-block" id="kk-utilities-remove-annotations-at-start-wrapper" title="Removes all annotations, when a new cell has been claimed">
       <input type="checkbox" id="kk-utilities-remove-annotations-at-start">
       Remove points at start
     </label><br>
-    <button class="kk-utilities-res" data-resolution="1" data-display="inline-block">1px</button>
-    <button class="kk-utilities-res" data-resolution="5" data-display="inline-block">5px</button><br>
-    <button id="kk-utilities-options">Options</button>
+    <button class="kk-utilities-res" data-resolution="1" data-display="inline-block" title="Changes slides resolution to 1px">1px</button>
+    <button class="kk-utilities-res" data-resolution="5" data-display="inline-block" title="Changes slides resolution to 5px">5px</button><br>
+    <button id="kk-utilities-options" title="Options to show or hide elements">Options</button>
   `
 }
