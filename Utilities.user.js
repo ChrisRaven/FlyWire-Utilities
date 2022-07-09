@@ -368,36 +368,15 @@ function addAnnotationAtStart() {
 }
 
 
-function removeLayer(index) {
-  let manager = viewer.layerManager
-  let layer = manager.managedLayers[index]
-
-  layer.layerChanged.remove(manager.layersChanged.dispatch)
-  layer.readyStateChanged.remove(manager.readyStateChanged.dispatch)
-  layer.specificationChanged.remove(manager.specificationChanged.dispatch)
-  layer.dispose()
-  manager.managedLayers.splice(index, 1)
-  manager.layerSet.delete(layer)
-  manager.layersChanged.dispatch()
-}
-
-
 function removeAnnotationsAtStart() {
   if (!document.getElementById(`${ap}remove-annotations-at-start`).checked) return
 
-  let indexes = []  
-  // with this first loop we only collect indexes, because removing elements with given indexes
-  // inside the loop, will shorten the array, over which the loop iterates,
-  // and we wouldn't be able to iterate over the whole array
-  viewer.layerManager.managedLayers.forEach((layer, index) => {
-    if (layer.initialSpecification.type === 'annotation') {
-      indexes.push(index)
-    }
-  })
+  let annotationLayers = Dock.layers.getByType('annotation')
+  let annotationIndexes = annotationLayers.map(layer => layer.index)
   // we are reversing the indexes to start removing layers from the last one
   // otherwise, each removing will shift all the next layers to the left
   // and the indexes will no longer match
-  indexes.reverse().forEach(index => removeLayer(index))
+  annotationIndexes.reverse().forEach(index => Dock.layers.remove(index))
 }
 
 
