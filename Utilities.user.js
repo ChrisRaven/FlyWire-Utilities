@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.5.1
+// @version      0.6
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -65,6 +65,9 @@ function main() {
           singleNode: true
         },
         contextmenu: (e) => deleteSplitpoint(e)
+      },
+      '.neuroglancer-rendered-data-panel': {
+        contextmenu: (e) => deleteAnnotationPoint(e)
       },
       '.neuroglancer-layer-side-panel': {
         contextmenu: (e) => contextmenuHandler(e)
@@ -292,6 +295,8 @@ function changeResolution(res) {
 function deleteSplitpoint(e) {
   if (!e.ctrlKey) return
 
+  if (viewer.selectedLayer.layer.initialSpecification.type !== 'segmentation_with_graph') return
+
   let id = Dock.getHighlightedSupervoxelId()
   let graphLayer = viewer.selectedLayer.layer.layer.graphOperationLayerState.value
   let refId = null
@@ -325,6 +330,18 @@ function deleteSplitpoint(e) {
   if (!ref) return
 
   annotationLayer.value.source.delete(ref)
+}
+
+
+function deleteAnnotationPoint(e) {
+  if (!e.ctrlKey) return
+
+  let mouseState = viewer.mouseState
+  let annotationId = mouseState.pickedAnnotationId
+
+  if (mouseState.active && annotationId) {
+    Dock.annotations.remove(annotationId)
+  }
 }
 
 
