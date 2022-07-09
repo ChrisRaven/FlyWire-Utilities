@@ -76,7 +76,7 @@ function main() {
         click: jumpToStart
       },
       [`.${ap}res`]: {
-        click: e => changeResolution(e.target.dataset.resolution)
+        click: e => changeResolution(e)
       },
       [`#${ap}add-annotation-at-start`]: {
         click: addAnnotationAtStartChanged
@@ -136,7 +136,8 @@ let saveable = {
   removeAnnotationsAtStartState: false,
   startAnnotationId: 0,
   visibleFeatures: [],
-  options: {}
+  options: {},
+  currentResolutionButton: 1
 }
 
 
@@ -283,7 +284,14 @@ function jumpToStart() {
 }
 
 
-function changeResolution(res) {
+function changeResolution(e) {
+  let res = e.target.dataset.resolution
+
+  document.querySelectorAll('.kk-utilities-res').forEach(button => button.classList.remove('active'))
+  e.target.classList.add('active')
+  saveable.resolution = res
+  saveToLS()
+
   viewer.layerManager.managedLayers.forEach(layer => {
     if (!layer || !layer.layer_ || !layer.layer_.sliceViewRenderScaleTarget) return
 
@@ -396,6 +404,10 @@ function removeAnnotationsAtStart() {
 function initFields() {
   document.getElementById(`${ap}add-annotation-at-start`).checked = saveable.addAnnotationAtStartState
   document.getElementById(`${ap}remove-annotations-at-start`).checked = saveable.removeAnnotationsAtStartState
+  if (saveable.resolution) {
+    let resButton = document.querySelector(`#kk-utilities-res-wrapper > [data-resolution="${saveable.resolution}"]`)
+    resButton.classList.add('active')
+  }
   initOptions()
 }
 
