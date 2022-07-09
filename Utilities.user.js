@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.6
+// @version      0.7
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -63,11 +63,13 @@ function main() {
         dblclick: {
           handler: dblClickHandler,
           singleNode: true
-        },
-        contextmenu: (e) => deleteSplitpoint(e)
+        }
       },
       '.neuroglancer-rendered-data-panel': {
-        contextmenu: (e) => deleteAnnotationPoint(e)
+        contextmenu: (e) => {
+          deleteAnnotationPoint(e)
+          deleteSplitPoint(e)
+        }
       },
       '.neuroglancer-layer-side-panel': {
         contextmenu: (e) => contextmenuHandler(e)
@@ -300,45 +302,29 @@ function changeResolution(e) {
 }
 
 
-function deleteSplitpoint(e) {
+function deleteSplitPoint(e) {
   if (!e.ctrlKey) return
 
-  if (viewer.selectedLayer.layer.initialSpecification.type !== 'segmentation_with_graph') return
+  let value
+  let type
 
-  let id = Dock.getHighlightedSupervoxelId()
-  let graphLayer = viewer.selectedLayer.layer.layer.graphOperationLayerState.value
-  let refId = null
-  let source = null
-
-  if (!graphLayer) return
-
-  [...graphLayer.annotationLayerStateA.value.source].forEach(el => {
-    if (el.description === id) {
-      refId = el.id
-      source = 'A'
-      return false
-    }
-  })
-  
-  if (!refId) {
-    [...graphLayer.annotationLayerStateB.value.source].forEach(el => {
-      if (el.description === id) {
-        refId = el.id
-        source = 'B'
-        return false
-      }
-    })
+  if (!viewer.mouseState.pickedRenderLayer) {
+    type = 'description'
+    value = Dock.getHighlightedSupervoxelId()
   }
 
-  if (!refId) return
+  if (!value) {
+    type = 'id'
+    value = viewer.mouseState.pickedAnnotationId
+  }
 
-  let annotationLayer = source === 'A' ? graphLayer.annotationLayerStateA : graphLayer.annotationLayerStateB
-  let ref = annotationLayer.value.source.getReference(refId)
+  if (!value) return
 
-  if (!ref) return
+  let point = Dock.annotations.getMulticutRef(type, value)
+  if (!point) return
 
-  annotationLayer.value.source.delete(ref)
-  ref.dispose()
+  point.source.delete(point.reference)
+  point.reference.dispose()
 }
 
 
