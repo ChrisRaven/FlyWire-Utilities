@@ -91,7 +91,7 @@ function main() {
         click: (e) => optionsDialogToggleFeatures(e)
       },
       '.neuroglancer-viewer-top-row': {
-        click: removeAnnotationsAtStart
+        click: deletePointsAtStart
       }
     }
   })
@@ -214,7 +214,7 @@ function fetchHandler(e) {
   }
   else if (url.includes('proofreading_drive?')) {
     saveSegmentAfterClaim(response)
-    removeAnnotationsAtStart()
+    deletePointsAtStart()
     addAnnotationAtStart()
 
     saveToLS()
@@ -338,6 +338,7 @@ function deleteSplitpoint(e) {
   if (!ref) return
 
   annotationLayer.value.source.delete(ref)
+  ref.dispose()
 }
 
 
@@ -368,15 +369,52 @@ function addAnnotationAtStart() {
 }
 
 
-function removeAnnotationsAtStart() {
+function deletePointsAtStart() {
   if (!document.getElementById(`${ap}remove-annotations-at-start`).checked) return
 
+  deleteAnnotations()
+  deleteMulticutPoints()
+  deletePath()
+}
+
+
+function deleteAnnotations() {
   let annotationLayers = Dock.layers.getByType('annotation')
   let annotationIndexes = annotationLayers.map(layer => layer.index)
   // we are reversing the indexes to start removing layers from the last one
   // otherwise, each removing will shift all the next layers to the left
   // and the indexes will no longer match
   annotationIndexes.reverse().forEach(index => Dock.layers.remove(index))
+}
+
+
+function deleteMulticutPoints() {
+  let graphLayer = viewer.selectedLayer.layer.layer.graphOperationLayerState.value
+  let sourceA = graphLayer.annotationLayerStateA.value.source
+  let sourceB = graphLayer.annotationLayerStateB.value.source
+
+  // source: src\neuroglancer\ui\graph_multicut.ts
+  for (const annotation of sourceA) {
+    const ref = sourceA.getReference(annotation.id);
+    try {
+      sourceA.delete(ref);
+    } finally {
+      ref.dispose();
+    }
+  }
+  for (const annotation of sourceB) {
+    const ref = sourceB.getReference(annotation.id);
+    try {
+      sourceB.delete(ref);
+    } finally {
+      ref.dispose();
+    }
+  }
+}
+
+
+function deletePath() {
+  viewer.selectedLayer.layer_.layer_.pathFinderState.pathBetweenSupervoxels.clear()
 }
 
 
