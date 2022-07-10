@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.7
+// @version      0.7.1
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -91,9 +91,6 @@ function main() {
       },
       [`#${ap}options-dialog`]: {
         click: (e) => optionsDialogToggleFeatures(e)
-      },
-      '.neuroglancer-viewer-top-row': {
-        click: deletePointsAtStart
       }
     }
   })
