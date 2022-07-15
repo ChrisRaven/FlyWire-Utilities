@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.7.1
+// @version      0.8
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -31,6 +31,26 @@ let wait = setInterval(() => {
 
 // addon prefix - used in all nodes, that have to have an ID
 let ap = 'kk-utilities-'
+
+
+function fix_segmentColors_2022_07_15() {
+  if (Dock.ls.get('fix_segmentColors_2022_07_15') === 'fixed') return
+
+  Object.entries(localStorage).forEach(entry => {
+    if (entry[0].includes('neuroglancerSaveState_v2-')) {
+      let e = JSON.parse(entry[1])
+      if (e.state && e.state.layers) {
+        e.state.layers.forEach(layer => {
+          if (layer.type === 'segmentation_with_graph' && layer.segmentColors) {
+            layer.segmentColors = {}
+            localStorage.setItem(entry[0], JSON.stringify(e))
+          }
+        })
+      }
+    }
+  })
+  Dock.ls.set('fix_segmentColors_2022_07_15', 'fixed')
+}
 
 function main() {
   loadFromLS()
@@ -72,7 +92,10 @@ function main() {
         }
       },
       '.neuroglancer-layer-side-panel': {
-        contextmenu: (e) => contextmenuHandler(e)
+        contextmenu: (e) => {
+          jumpToSegment(e)
+          openSegmentInNewTab(e)
+        }
       },
       [`#${ap}jump-to-start`]: {
         click: jumpToStart
@@ -99,6 +122,34 @@ function main() {
   document.addEventListener('contextmenu', e => hideAllButHandler(e))
   initFields()
 
+  loadStateForSingleSegment()
+
+  if (typeof DEV !== 'undefined') {
+    let button = document.createElement('button')
+    button.textContent = 'Test'
+    let top = document.getElementsByClassName('neuroglancer-viewer-top-row')[0]
+    top.appendChild(button)
+    top.addEventListener('click', e => testClickHandler(e))
+
+    function testClickHandler(e) {}
+  }
+
+
+  fix_segmentColors_2022_07_15()
+}
+
+
+function loadStateForSingleSegment() {
+  let url = new URL(unsafeWindow.location.href)
+  if (!url.searchParams.has('kk_seg_id')) return
+
+  let segId = url.searchParams.get('kk_seg_id')
+
+  url.searchParams.delete('kk_seg_id')
+  window.history.pushState('', '', url.href)
+
+  viewer.selectedLayer.layer.layer.displayState.rootSegments.clear()
+  viewer.selectedLayer.layer.layer.displayState.rootSegments.add(Dock.stringToUint64(segId))
 }
 
 
@@ -178,14 +229,14 @@ function dblClickHandler() {
 }
 
 
-function contextmenuHandler(e) {
+function jumpToSegment(e) {
   if (!e.target.classList.contains('segment-button')) return
 
   let segId = e.target.dataset.segId
   let coords = saveable.roots[segId]
   // if we don't have coords for a given rootId, we check every leave to see, if any of them didn't change their rootId in the meantime
   if (!coords) {
-    for (const [leafId, coords] of Object.entries(leaves)) {
+    for (const [leafId, coords] of Object.entries(saveable.leaves)) {
       Dock.getRootId(leafId, rootId => {
         if (rootId === segId) {
           saveable.roots[rootId] = coords
@@ -199,6 +250,28 @@ function contextmenuHandler(e) {
     Dock.jumpToCoords(coords)
   }
 }
+
+
+function openSegmentInNewTab(e) {
+  let button = e.target        // e.target === <button>
+  if (!button.classList.contains('segment-copy-button')) {
+    button = button.parentNode // e.target === <svg>
+  }
+  if (!button.classList.contains('segment-copy-button')) {
+    button = button.parentNode // e.target === <path>
+  }
+  if (!button.classList.contains('segment-copy-button')) return
+
+  let segId = button.previousElementSibling.dataset.segId
+  let url = new URL(unsafeWindow.location.href)
+  let randomString = Dock.getRandomHexString()
+  let lsName = 'neuroglancerSaveState_v2-' + randomString
+  localStorage.setItem(lsName, JSON.stringify(viewer.saver.pull()))
+  url.searchParams.set('local_id', randomString)
+  url.searchParams.append('kk_seg_id', segId)
+  unsafeWindow.open(url.href, '_blank');
+}
+
 
 function fetchHandler(e) {
   let response = e.detail.response
