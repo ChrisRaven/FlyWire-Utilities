@@ -148,8 +148,9 @@ function loadStateForSingleSegment() {
   url.searchParams.delete('kk_seg_id')
   window.history.pushState('', '', url.href)
 
-  viewer.selectedLayer.layer.layer.displayState.rootSegments.clear()
-  viewer.selectedLayer.layer.layer.displayState.rootSegments.add(Dock.stringToUint64(segId))
+  let rootSegments = Dock.layers.getByType('segmentation_with_graph', false)[0].layer.displayState.rootSegments
+  rootSegments.clear()
+  rootSegments.add(Dock.stringToUint64(segId))
 }
 
 
@@ -445,7 +446,7 @@ function deleteAnnotations() {
 
 
 function deleteMulticutPoints() {
-  let graphLayer = viewer.selectedLayer.layer.layer.graphOperationLayerState.value
+  let graphLayer = Dock.layers.getByType('segmentation_with_graph', false)[0].layer.graphOperationLayerState.value
   let sourceA = graphLayer.annotationLayerStateA.value.source
   let sourceB = graphLayer.annotationLayerStateB.value.source
 
@@ -470,7 +471,8 @@ function deleteMulticutPoints() {
 
 
 function deletePath() {
-  viewer.selectedLayer.layer_.layer_.pathFinderState.pathBetweenSupervoxels.clear()
+  Dock.layers.getByType('segmentation_with_graph', false)[0].layer.pathFinderState.pathBetweenSupervoxels.clear()
+  // viewer.selectedLayer.layer_.layer_.pathFinderState.pathBetweenSupervoxels.clear()
 }
 
 
