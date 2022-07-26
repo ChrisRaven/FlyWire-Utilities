@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.8.1
+// @version      0.8.2
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -122,8 +122,6 @@ function main() {
   document.addEventListener('contextmenu', e => hideAllButHandler(e))
   initFields()
 
-  loadStateForSingleSegment()
-
   if (typeof DEV !== 'undefined') {
     let button = document.createElement('button')
     button.textContent = 'Test'
@@ -136,21 +134,6 @@ function main() {
 
 
   fix_segmentColors_2022_07_15()
-}
-
-
-function loadStateForSingleSegment() {
-  let url = new URL(unsafeWindow.location.href)
-  if (!url.searchParams.has('kk_seg_id')) return
-
-  let segId = url.searchParams.get('kk_seg_id')
-
-  url.searchParams.delete('kk_seg_id')
-  window.history.pushState('', '', url.href)
-
-  let rootSegments = Dock.layers.getByType('segmentation_with_graph', false)[0].layer.displayState.rootSegments
-  rootSegments.clear()
-  rootSegments.add(Dock.stringToUint64(segId))
 }
 
 
@@ -235,7 +218,7 @@ function jumpToSegment(e) {
 
   let segId = e.target.dataset.segId
   let coords = saveable.roots[segId]
-  // if we don't have coords for a given rootId, we check every leave to see, if any of them didn't change their rootId in the meantime
+  // if we don't have coords for a given rootId, we check every leaf to see, if any of them didn't change their rootId in the meantime
   if (!coords) {
     for (const [leafId, coords] of Object.entries(saveable.leaves)) {
       Dock.getRootId(leafId, rootId => {
@@ -264,13 +247,19 @@ function openSegmentInNewTab(e) {
   if (!button.classList.contains('segment-copy-button')) return
 
   let segId = button.previousElementSibling.dataset.segId
+  let state = viewer.saver.pull()
+
+  state.state.layers.forEach(layer => {
+    if (!layer.type === 'segmentation_with_graph') return
+
+    layer.segments = [segId]
+  })
+
   let url = new URL(unsafeWindow.location.href)
   let randomString = Dock.getRandomHexString()
   let lsName = 'neuroglancerSaveState_v2-' + randomString
-  localStorage.setItem(lsName, JSON.stringify(viewer.saver.pull()))
-  url.searchParams.set('local_id', randomString)
-  url.searchParams.append('kk_seg_id', segId)
-  unsafeWindow.open(url.href, '_blank');
+  localStorage.setItem(lsName, JSON.stringify(state))
+  unsafeWindow.open(url.origin + '/?local_id=' + randomString, '_blank')
 }
 
 
