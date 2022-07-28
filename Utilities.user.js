@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.8.2
+// @version      0.9
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -217,21 +217,34 @@ function jumpToSegment(e) {
   if (!e.target.classList.contains('segment-button')) return
 
   let segId = e.target.dataset.segId
-  let coords = saveable.roots[segId]
-  // if we don't have coords for a given rootId, we check every leaf to see, if any of them didn't change their rootId in the meantime
-  if (!coords) {
-    for (const [leafId, coords] of Object.entries(saveable.leaves)) {
-      Dock.getRootId(leafId, rootId => {
-        if (rootId === segId) {
-          saveable.roots[rootId] = coords
-          saveToLS()
-          Dock.jumpToCoords(coords)
-        }
-      })
+
+  for (const [key, el] of viewer.chunkManager.memoize.map) {
+    if (!el.fragmentSource) continue
+
+    let requests = []
+    for (const [key, chunk] of el.fragmentSource.meshSource.chunks) {
+      let fragmentId = chunk.fragmentIds[0].split(':')[0]
+
+      for (const [key, chunk] of el.fragmentSource.chunks) {
+        if (key.split(':')[0] !== fragmentId) continue
+      
+        let request = Dock.getRootId(fragmentId, rootId => {
+          if (!rootId || rootId !== segId) return
+
+          requests.forEach(request => {
+            request.abort()
+          })
+
+          let positions = chunk.meshData.vertexPositions
+          let x = positions[0] / 4
+          let y = positions[1] / 4
+          let z = positions[2] / 40
+          Dock.jumpToCoords([x, y, z])
+        })
+
+        requests.push(request)
+      }
     }
-  }
-  else {
-    Dock.jumpToCoords(coords)
   }
 }
 
@@ -287,6 +300,8 @@ function fetchHandler(e) {
 function saveSegmentAfterClaim(response) {
   clearLists()
   let coords = response.ngl_coordinates
+
+  if (!coords) return // happens, when there are no cells to proofread
 
   // source: webpack:///src/state.ts (FlyWire)
   const coordsSpaced = coords.slice(1, -1).split(" ")
