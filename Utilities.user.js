@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.10.1
+// @version      0.10.2
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -288,9 +288,18 @@ function openSegmentInNewTab(e) {
   let state = viewer.saver.pull()
 
   state.state.layers.forEach(layer => {
-    if (!layer.type === 'segmentation_with_graph') return
+    if (layer.type !== 'segmentation_with_graph') return
 
-    layer.segments = [segId]
+    if (layer.segments.includes(segId)) {
+      layer.segments = [segId]
+      layer.hiddenSegments = []
+    }
+
+    if (layer.hiddenSegments.includes(segId)) {
+      layer.segments = []
+      layer.hiddenSegments = [segId]
+    }
+    
   })
 
   let url = new URL(unsafeWindow.location.href)
