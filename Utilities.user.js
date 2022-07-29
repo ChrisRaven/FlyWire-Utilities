@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.10
+// @version      0.10.1
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -217,7 +217,31 @@ function jumpToSegment(e) {
   if (!e.target.classList.contains('segment-button')) return
 
   let segId = e.target.dataset.segId
+  let coords = saveable.roots[segId]
 
+  // if we don't have coords for a given rootId, we check every leaf to see, if any of them didn't change their rootId in the meantime
+  if (!coords) {
+    let numberOfConnectionsNeeded = Object.keys(saveable.leaves).length
+    for (const [leafId, coords] of Object.entries(saveable.leaves)) {
+      Dock.getRootId(leafId, rootId => {
+        if (rootId === segId) {
+          saveable.roots[rootId] = coords
+          saveToLS()
+          Dock.jumpToCoords(coords)
+        }
+        else if (!--numberOfConnectionsNeeded) {
+          jumpToSegmentNewWay(segId)
+        }
+      })
+    }
+  }
+  else {
+    Dock.jumpToCoords(coords)
+  }
+}
+
+
+function jumpToSegmentNewWay(segId) {
   for (const [key, el] of viewer.chunkManager.memoize.map) {
     if (!el.fragmentSource) continue
 
@@ -227,7 +251,7 @@ function jumpToSegment(e) {
 
       for (const [key, chunk] of el.fragmentSource.chunks) {
         if (key.split(':')[0] !== fragmentId) continue
-      
+
         let request = Dock.getRootId(fragmentId, rootId => {
           if (!rootId || rootId !== segId) return
 
