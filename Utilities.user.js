@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.9
+// @version      0.10
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -235,10 +235,11 @@ function jumpToSegment(e) {
             request.abort()
           })
 
+          let voxelSize = Dock.getVoxelSize()
           let positions = chunk.meshData.vertexPositions
-          let x = positions[0] / 4
-          let y = positions[1] / 4
-          let z = positions[2] / 40
+          let x = positions[0] / voxelSize[0]
+          let y = positions[1] / voxelSize[1]
+          let z = positions[2] / voxelSize[2]
           Dock.jumpToCoords([x, y, z])
         })
 
@@ -294,6 +295,31 @@ function fetchHandler(e) {
 
     saveToLS()
   }
+  else if (url.includes('split_preview?')) {
+    if (!response.illegal_split) return
+    let separatedSupervoxels = response.supervoxel_connected_components[2]
+    if (!separatedSupervoxels.length) return
+
+    body = JSON.parse(body)
+    highlightSeparatedSupervoxels(body, separatedSupervoxels)
+  }
+}
+
+
+function highlightSeparatedSupervoxels(body, separatedSupervoxels) {
+  separatedSupervoxels.forEach(separatedSupervoxel => {
+    body.sinks.forEach(sink => {
+      if (sink[0] !== separatedSupervoxel) return
+
+      document.querySelector(`[data-seg-id="${separatedSupervoxel}"]`).style.border = '2px solid orange'
+    })
+
+    body.sources.forEach(source => {
+      if (source[0] !== separatedSupervoxel) return
+
+      document.querySelector(`[data-seg-id="${separatedSupervoxel}"]`).style.border = '2px solid orange'
+    })
+  })
 }
 
 
