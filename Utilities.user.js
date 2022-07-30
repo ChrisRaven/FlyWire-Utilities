@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.10.2
+// @version      0.10.3
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -284,23 +284,31 @@ function openSegmentInNewTab(e) {
   }
   if (!button.classList.contains('segment-copy-button')) return
 
-  let segId = button.previousElementSibling.dataset.segId
   let state = viewer.saver.pull()
+  if (e.ctrlKey) {
+    state.state.layers.forEach(layer => {
+      if (layer.type !== 'segmentation_with_graph') return
 
-  state.state.layers.forEach(layer => {
-    if (layer.type !== 'segmentation_with_graph') return
-
-    if (layer.segments.includes(segId)) {
-      layer.segments = [segId]
       layer.hiddenSegments = []
-    }
-
-    if (layer.hiddenSegments.includes(segId)) {
-      layer.segments = []
-      layer.hiddenSegments = [segId]
-    }
-    
-  })
+    })
+  }
+  else {
+    let segId = button.previousElementSibling.dataset.segId
+  
+    state.state.layers.forEach(layer => {
+      if (layer.type !== 'segmentation_with_graph') return
+  
+      if (layer.segments.includes(segId)) {
+        layer.segments = [segId]
+        layer.hiddenSegments = []
+      }
+  
+      if (layer.hiddenSegments.includes(segId)) {
+        layer.segments = []
+        layer.hiddenSegments = [segId]
+      }
+    })
+  }
 
   let url = new URL(unsafeWindow.location.href)
   let randomString = Dock.getRandomHexString()
