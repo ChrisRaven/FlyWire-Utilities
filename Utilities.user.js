@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.10.3
+// @version      0.10.4
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -51,6 +51,20 @@ function fix_segmentColors_2022_07_15() {
   })
   Dock.ls.set('fix_segmentColors_2022_07_15', 'fixed')
 }
+
+
+function fix_visibilityOptions_2022_07_30() {
+  if (Dock.ls.get('fix_visibilityOptions_2022_07_30') === 'fixed') return
+
+  let settings = Dock.ls.get('utilities', true)
+  if (!settings) return
+
+  settings.options['kk-utilities-options-toggle-resolution-buttons'].selector = '#kk-utilities-res-wrapper'
+
+  Dock.ls.set('utilities', settings, true)
+  Dock.ls.set('fix_visibilityOptions_2022_07_30', 'fixed')
+}
+
 
 function main() {
   loadFromLS()
@@ -114,6 +128,9 @@ function main() {
       },
       [`#${ap}options-dialog`]: {
         click: (e) => optionsDialogToggleFeatures(e)
+      },
+      [`#${ap}toggle-background`]: {
+        click: toggleBackground
       }
     }
   })
@@ -134,6 +151,7 @@ function main() {
 
 
   fix_segmentColors_2022_07_15()
+  fix_visibilityOptions_2022_07_30()
 }
 
 
@@ -159,6 +177,11 @@ const defaultOptions = {
     selector: `#${ap}res-wrapper`,
     text: 'Resolution buttons',
     state: true
+  },
+  [optPrefix + 'toggle-background']: {
+    selector: `#${ap}toggle-background`,
+    text: 'Background color switch',
+    state: true
   }
 }
 
@@ -171,7 +194,8 @@ let saveable = {
   startAnnotationId: 0,
   visibleFeatures: [],
   options: {},
-  currentResolutionButton: 1
+  currentResolutionButton: 1,
+  backgroundColor: 'black'
 }
 
 
@@ -185,6 +209,8 @@ function loadFromLS() {
   if (saveable.options && Object.entries(saveable.options).length === 0 || !saveable.options) {
     saveable.options = defaultOptions
   }
+
+  saveable.options = Object.assign({}, defaultOptions, saveable.options)
 }
 
 
@@ -403,7 +429,6 @@ function saveSegmentsAfterSplit(body) {
 }
 
 
-
 function hideAllButHandler(e) {
   let target = e.target
 
@@ -557,6 +582,7 @@ function initFields() {
   initOptions()
 }
 
+
 function initOptions() {
   if (!saveable.options) return
 
@@ -571,8 +597,28 @@ function addAnnotationAtStartChanged() {
   saveToLS()
 }
 
+
 function removeAnnotationsAtStartChanged() {
   saveable.removeAnnotationsAtStartState = document.getElementById(`${ap}remove-annotations-at-start`).checked
+  saveToLS()
+}
+
+
+function toggleBackground() {
+  let color = viewer.perspectiveViewBackgroundColor.value_;
+  if (saveable.backgroundColor === 'black') {
+    color[0] = 1
+    color[1] = 1
+    color[2] = 1
+    saveable.backgroundColor = 'white'
+  }
+  else {
+    color[0] = 0
+    color[1] = 0
+    color[2] = 0
+    saveable.backgroundColor = 'black'
+  }
+
   saveToLS()
 }
 
@@ -647,7 +693,6 @@ function optionsDialogToggleFeatures(e) {
 }
 
 
-
 function generateHtml() {
   return /*html*/`
     <button id="kk-utilities-jump-to-start" data-display="block" title="Jump to point, at which you've started this cell">Jump to start</button>
@@ -663,6 +708,8 @@ function generateHtml() {
       <button class="kk-utilities-res" data-resolution="1" title="Changes slides resolution to 1px">1px</button>
       <button class="kk-utilities-res" data-resolution="5" title="Changes slides resolution to 5px">5px</button>
     </div>
+    <button id="kk-utilities-toggle-background" data-display="block">Background</button>
     <button id="kk-utilities-options" title="Options to show or hide elements">Options</button>
+    
   `
 }
