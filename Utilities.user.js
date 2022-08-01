@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.10.4
+// @version      0.10.5
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -605,7 +605,9 @@ function removeAnnotationsAtStartChanged() {
 
 
 function toggleBackground() {
-  let color = viewer.perspectiveViewBackgroundColor.value_;
+  let graphLayer = Dock.layers.getByType('segmentation_with_graph', false)[0]
+  let color = viewer.perspectiveViewBackgroundColor.value_
+
   if (saveable.backgroundColor === 'black') {
     color[0] = 1
     color[1] = 1
@@ -619,6 +621,7 @@ function toggleBackground() {
     saveable.backgroundColor = 'black'
   }
 
+  graphLayer.layer.layersChanged.dispatch()
   saveToLS()
 }
 
