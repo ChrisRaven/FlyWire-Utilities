@@ -88,6 +88,7 @@ function main() {
         display: block;
       }
 
+      #${ap}toggle-background,
       #${ap}jump-to-start {
         margin: auto;
       }
@@ -323,16 +324,9 @@ function openSegmentInNewTab(e) {
   
     state.state.layers.forEach(layer => {
       if (layer.type !== 'segmentation_with_graph') return
-  
-      if (layer.segments.includes(segId)) {
-        layer.segments = [segId]
-        layer.hiddenSegments = []
-      }
-  
-      if (layer.hiddenSegments.includes(segId)) {
-        layer.segments = []
-        layer.hiddenSegments = [segId]
-      }
+
+      layer.segments = [segId]
+      layer.hiddenSegments = []
     })
   }
 
@@ -469,7 +463,7 @@ function changeResolution(e) {
 }
 
 
-function deleteSplitPoint(e) {
+function deleteSplitPoint(e) {console.log('deleteSplitPoint.event', e)
   if (!e.ctrlKey) return
 
   let value
@@ -484,10 +478,12 @@ function deleteSplitPoint(e) {
     type = 'id'
     value = viewer.mouseState.pickedAnnotationId
   }
-
+console.log('type', type)
+console.log('description', description)
   if (!value) return
 
   let point = Dock.annotations.getMulticutRef(type, value)
+  console.log('point', point)
   if (!point) return
 
   point.source.delete(point.reference)
