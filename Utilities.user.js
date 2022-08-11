@@ -359,7 +359,7 @@ function fetchHandler(e) {
   else if (url.includes('split_preview?')) {
     if (!response.illegal_split) return
     let separatedSupervoxels = response.supervoxel_connected_components[2]
-    if (!separatedSupervoxels.length) return
+    if (!separatedSupervoxels || !separatedSupervoxels.length) return
 
     body = JSON.parse(body)
     highlightSeparatedSupervoxels(body, separatedSupervoxels)
@@ -478,8 +478,8 @@ function deleteSplitPoint(e) {console.log('deleteSplitPoint.event', e)
     type = 'id'
     value = viewer.mouseState.pickedAnnotationId
   }
-console.log('type', type)
-console.log('description', description)
+
+  
   if (!value) return
 
   let point = Dock.annotations.getMulticutRef(type, value)
