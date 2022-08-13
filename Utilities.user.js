@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.10.5
+// @version      0.11
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -84,12 +84,14 @@ function main() {
       #${ap}jump-to-start,
       #${ap}add-annotation-at-start-wrapper,
       #${ap}remove-annotations-at-start-wrapper,
+      #${ap}show-neuropils,
       #${ap}res-wrapper {
         display: block;
       }
 
       #${ap}toggle-background,
-      #${ap}jump-to-start {
+      #${ap}jump-to-start,
+      #${ap}show-neuropils {
         margin: auto;
       }
       `,
@@ -132,6 +134,9 @@ function main() {
       },
       [`#${ap}toggle-background`]: {
         click: toggleBackground
+      },
+      [`#${ap}show-neuropils`]: {
+        click: showNeuropils
       }
     }
   })
@@ -183,6 +188,39 @@ const defaultOptions = {
     selector: `#${ap}toggle-background`,
     text: 'Background color switch',
     state: true
+  },
+  [optPrefix + 'show-neuropils']: {
+    selector: `#${ap}show-neuropils`,
+    text: 'Show neuropils',
+    state: true
+  },
+  'neuropils': {
+    isGroup: true,
+    [optPrefix + 'neuropil-optic-lobe']: {
+      selector: `#${ap}neropil-optic-lobe`,
+      text: 'Show Optic Lobe',
+      state: true
+    },
+    [optPrefix + 'neuropil-medulla']: {
+      selector: `#${ap}neropil-medulla`,
+      text: 'Show Medulla',
+      state: true
+    },
+    [optPrefix + 'neuropil-lobula']: {
+      selector: `#${ap}neropil-lobula`,
+      text: 'Show Lobula',
+      state: true
+    },
+    [optPrefix + 'neuropil-lobula-plate']: {
+      selector: `#${ap}neropil-lobula-plate`,
+      text: 'Show Lobula Plate',
+      state: true
+    },
+    [optPrefix + 'neuropil-accessory-medulla']: {
+      selector: `#${ap}neropil-accessory-medulla`,
+      text: 'Show Accessory Medulla',
+      state: true
+    }
   }
 }
 
@@ -194,9 +232,18 @@ let saveable = {
   removeAnnotationsAtStartState: false,
   startAnnotationId: 0,
   visibleFeatures: [],
-  options: {},
+  options: {
+    neropils: {
+      opticLobe: true,
+      medulla: true,
+      lobula: true,
+      lobulaPlate: true,
+      accessoryMedulla: true
+    }
+  },
   currentResolutionButton: 1,
   backgroundColor: 'black'
+
 }
 
 
@@ -243,27 +290,25 @@ function dblClickHandler() {
 function jumpToSegment(e) {
   if (!e.target.classList.contains('segment-button')) return
 
-  let segId = e.target.dataset.segId
+  let segId = Object.keys(e.target.dataset).length && e.target.dataset.segId
   let coords = saveable.roots[segId]
 
+  if (coords) return Dock.jumpToCoords(coords)
+
   // if we don't have coords for a given rootId, we check every leaf to see, if any of them didn't change their rootId in the meantime
-  if (!coords) {
-    let numberOfConnectionsNeeded = Object.keys(saveable.leaves).length
-    for (const [leafId, coords] of Object.entries(saveable.leaves)) {
-      Dock.getRootId(leafId, rootId => {
-        if (rootId === segId) {
-          saveable.roots[rootId] = coords
-          saveToLS()
-          Dock.jumpToCoords(coords)
-        }
-        else if (!--numberOfConnectionsNeeded) {
-          jumpToSegmentNewWay(segId)
-        }
-      })
-    }
-  }
-  else {
-    Dock.jumpToCoords(coords)
+  let numberOfConnectionsNeeded = Object.keys(saveable.leaves).length
+
+  for (const [leafId, coords] of Object.entries(saveable.leaves)) {
+    Dock.getRootId(leafId, rootId => {
+      if (rootId === segId) {
+        saveable.roots[rootId] = coords
+        saveToLS()
+        Dock.jumpToCoords(coords)
+      }
+      else if (!--numberOfConnectionsNeeded) {
+        jumpToSegmentNewWay(segId)
+      }
+    })
   }
 }
 
@@ -320,7 +365,7 @@ function openSegmentInNewTab(e) {
     })
   }
   else {
-    let segId = button.previousElementSibling.dataset.segId
+    let segId = Object.keys(button.previousElementSibling.dataset).length && button.previousElementSibling.dataset.segId
   
     state.state.layers.forEach(layer => {
       if (layer.type !== 'segmentation_with_graph') return
@@ -344,6 +389,8 @@ function fetchHandler(e) {
   let url = e.detail.url
   if (response.code && response.code === 400) return console.error('Utilities: failed operation')
 
+  // we don't have to update segments after merge, because we still have a point from at least one of the merged fragments
+  // so we only need to update the rootId right before jumping
   if (url.includes('split?')) {
     saveSegmentsAfterSplit(body)
 
@@ -395,12 +442,14 @@ function saveSegmentAfterClaim(response) {
   const xyz = []
   for (const coord of coordsSpaced) {
     if (coord === '') continue
-    xyz.push(parseInt(coord))
+    xyz.push(parseInt(coord, 10))
   }
   coords = xyz
 
   let leafId = response.supervoxel_id
+  let rootId = response.root_id
   saveable.leaves[leafId] = coords
+  saveable.roots[rootId] = coords
   saveable.startCoords = coords
 }
 
@@ -409,9 +458,10 @@ function saveSegmentsAfterSplit(body) {
   let voxelSize = Dock.getVoxelSize()
 
   body = JSON.parse(body)
+
   let point = body.sources[0]
   let leafId = point[0]
-  point.shift()
+  point.shift() // the point is in format [segId, x, y, z]
   let coords = Dock.divideVec3(point, voxelSize)
   saveable.leaves[leafId] = coords
 
@@ -448,7 +498,7 @@ function jumpToStart() {
 
 
 function changeResolution(e) {
-  let res = e.target.dataset.resolution
+  let res = Object.keys(e.target.dataset).length && e.target.dataset.resolution
 
   document.querySelectorAll('.kk-utilities-res').forEach(button => button.classList.remove('active'))
   e.target.classList.add('active')
@@ -463,7 +513,7 @@ function changeResolution(e) {
 }
 
 
-function deleteSplitPoint(e) {console.log('deleteSplitPoint.event', e)
+function deleteSplitPoint(e) {//console.log('deleteSplitPoint.event', e)
   if (!e.ctrlKey) return
 
   let value
@@ -483,7 +533,7 @@ function deleteSplitPoint(e) {console.log('deleteSplitPoint.event', e)
   if (!value) return
 
   let point = Dock.annotations.getMulticutRef(type, value)
-  console.log('point', point)
+  //console.log('point', point)
   if (!point) return
 
   point.source.delete(point.reference)
@@ -505,6 +555,7 @@ function deleteAnnotationPoint(e) {
 
 function addAnnotationAtStart() {
   if (!document.getElementById(`${ap}add-annotation-at-start`).checked) return
+  if (!Dock.annotations.getAnnotationLayer()) return
   
   // remove previous annotation if exists
   if (saveable.startAnnotationId) {
@@ -564,7 +615,6 @@ function deleteMulticutPoints() {
 
 function deletePath() {
   Dock.layers.getByType('segmentation_with_graph', false)[0].layer.pathFinderState.pathBetweenSupervoxels.clear()
-  // viewer.selectedLayer.layer_.layer_.pathFinderState.pathBetweenSupervoxels.clear()
 }
 
 
@@ -582,8 +632,16 @@ function initFields() {
 function initOptions() {
   if (!saveable.options) return
 
-  for (const checkboxId of Object.keys(saveable.options)) {
-    optionsDialogToggleFeature(checkboxId)
+  for (const [checkboxId, value] of Object.entries(saveable.options)) {
+    if (value.isGroup) {
+      for (const id of Object.keys(value)) {
+        if (id === 'isGroup') continue
+        optionsDialogToggleFeature(id)
+      }
+    }
+    else {
+      optionsDialogToggleFeature(checkboxId)
+    }
   }
 }
 
@@ -622,10 +680,165 @@ function toggleBackground() {
 }
 
 
+function showNeuropils() {
+  const state = viewer.state.toJSON()
+
+  const opticLobe = {
+    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
+    "type": "segmentation",
+    "objectAlpha": 0.38,
+    "segmentColors": {
+      "2": "#d3b936",
+      "6": "#2dc830",
+      "14": "#367aba",
+      "29": "#8736c9",
+      "36": "#3ed048",
+      "43": "#d3a936",
+      "51": "#3681ba",
+      "56": "#54348d"
+    },
+    "segments": [
+      "14",
+      "2",
+      "29",
+      "36",
+      "43",
+      "51",
+      "56",
+      "6"
+    ],
+    "skeletonRendering": {
+      "mode2d": "lines_and_points",
+      "mode3d": "lines"
+    },
+    "name": "Optic Lobe"
+  }
+
+  const medulla = {
+    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
+    "type": "segmentation",
+    "objectAlpha": 0.38,
+    "segmentColors": {
+      "2": "#d3b936",
+      "43": "#d3a936"
+    },
+    "segments": [
+      "2",
+      "43"
+    ],
+    "skeletonRendering": {
+      "mode2d": "lines_and_points",
+      "mode3d": "lines"
+    },
+    "name": "Medulla"
+  }
+
+  const lobula = {
+    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
+    "type": "segmentation",
+    "objectAlpha": 0.38,
+    "segmentColors": {
+      "14": "#367aba",
+      "51": "#367aba"
+    },
+    "segments": [
+      "14",
+      "51"
+    ],
+    "skeletonRendering": {
+      "mode2d": "lines_and_points",
+      "mode3d": "lines"
+    },
+    "name": "Lobula"
+  }
+
+  const lobulaPlate = {
+    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
+    "type": "segmentation",
+    "objectAlpha": 0.38,
+    "segmentColors": {
+      "6": "#2dc830",
+      "36": "#2dc830"
+    },
+    "segments": [
+      "6",
+      "36"
+    ],
+    "skeletonRendering": {
+      "mode2d": "lines_and_points",
+      "mode3d": "lines"
+    },
+    "name": "Lobula Plate"
+  }
+
+  const accessoryMedulla = {
+    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
+    "type": "segmentation",
+    "objectAlpha": 0.38,
+    "segmentColors": {
+      "29": "#8736c9",
+      "56": "#8736c9"
+    },
+    "segments": [
+      "29",
+      "56"
+    ],
+    "skeletonRendering": {
+      "mode2d": "lines_and_points",
+      "mode3d": "lines"
+    },
+    "name": "Accessory Medulla"
+  }
+
+  const neuropils = {
+    'Optic Lobe': {
+      settings: opticLobe,
+      key: optPrefix + 'neuropil-optic-lobe'
+    },
+    'Medulla': {
+      settings: medulla,
+      key: optPrefix + 'neuropil-medulla'
+    },
+    'Lobula': {
+      settings: lobula,
+      key: optPrefix + 'neuropil-lobula'
+    },
+    'Lobula Plate': {
+      settings: lobulaPlate,
+      key: optPrefix + 'neuropil-lobula-plate'
+    },
+    'Accessory Medulla': {
+      settings: accessoryMedulla,
+      key: optPrefix + 'neuropil-accessory-medulla'
+    }
+  }
+
+  for (const [layerName, value] of Object.entries(neuropils)) {
+    if (!Dock.layers.getByName(layerName).length && saveable.options.neuropils[value.key].state) {
+      state.layers.push(value.settings)
+    }
+  }
+
+  viewer.state.restoreState(state)
+}
+
+
 function generateOptionsHtml() {
   let html = ''
   for (const [checkboxId, option] of Object.entries(saveable.options)) {
-    html += `<label><input type="checkbox" id="${checkboxId}" ${option.state ? 'checked' : ''}>${option.text}</label><br />`
+    if (option.isGroup) {
+      html += '<div class="kk-utilities-options-wrapper">'
+
+      for (const [name, opt] of Object.entries(option)) {
+        if (name === 'isGroup') continue
+        html += `<label><input type="checkbox" data-group="${checkboxId}" id="${name}" ${opt.state ? 'checked' : ''}>${opt.text}</label><br />`
+      }
+
+      html += '</div>'
+    }
+    else {
+      html += `<label><input type="checkbox" id="${checkboxId}" ${option.state ? 'checked' : ''}>${option.text}</label><br />`
+    }
   }
 
   return html
@@ -648,6 +861,11 @@ function optionsDialogSettings() {
       #${dialogId} input[type="checkbox"] {
         margin-right: 15px;
       }
+
+      .kk-utilities-options-wrapper {
+        border: 1px solid gray;
+        border-radius: 4px;
+      }
     `,
     id: dialogId,
     okCallback: () => {},
@@ -657,14 +875,15 @@ function optionsDialogSettings() {
 
 
 function optionsDialogToggleFeature(checkboxId) {
-  let checkbox = document.getElementById(checkboxId)
-  let featureSelector = saveable.options[checkboxId].selector
-  let feature = document.querySelectorAll(featureSelector)
+  const checkbox = document.getElementById(checkboxId)
+  const group = Object.keys(checkbox.dataset).length && checkbox.dataset.group
+  const featureSelector = group ? saveable.options[group][checkboxId].selector : saveable.options[checkboxId].selector
+  const feature = document.querySelectorAll(featureSelector)
 
   if (!feature || !checkbox) return
 
-  let state = checkbox.checked
-  feature.forEach(el => el.style.display = state ? el.dataset.display : 'none')
+  const state = checkbox.checked
+  feature.forEach(el => el.style.display = state && Object.keys(el.dataset).length ? el.dataset.display : 'none')
 
   return state
 }
@@ -673,7 +892,10 @@ function optionsDialogToggleFeature(checkboxId) {
 function optionsDialogToggleFeatures(e) {
   let dialogId = ap + 'options-dialog'
   if (e.target.type !== 'checkbox' && e.target.tagName !== 'LABEL') return
-  if (e.target.parentNode.parentNode.id !== dialogId && e.target.parentNode.parentNode.parentNode.id !== dialogId) return
+  if (e.target.parentNode.parentNode.id !== dialogId &&
+      e.target.parentNode.parentNode.parentNode.id !== dialogId &&
+      e.target.parentNode.parentNode.parentNode.parentNode.id !== dialogId
+    ) return
 
   let prefix = ap + 'options-toggle-'
   let checkboxId
@@ -686,8 +908,17 @@ function optionsDialogToggleFeatures(e) {
   }
   else return
 
-  let state = optionsDialogToggleFeature(checkboxId)
-  saveable.options[checkboxId].state = state
+  const checkbox = document.getElementById(checkboxId)
+  const state = optionsDialogToggleFeature(checkboxId)
+  const group = Object.keys(checkbox.dataset).length && checkbox.dataset.group
+
+  if (group) {
+    saveable.options[group][checkboxId].state = state
+  }
+  else {
+    saveable.options[checkboxId].state = state
+  }
+
   saveToLS()
 }
 
@@ -707,8 +938,8 @@ function generateHtml() {
       <button class="kk-utilities-res" data-resolution="1" title="Changes slides resolution to 1px">1px</button>
       <button class="kk-utilities-res" data-resolution="5" title="Changes slides resolution to 5px">5px</button>
     </div>
-    <button id="kk-utilities-toggle-background" data-display="block">Background</button>
-    <button id="kk-utilities-options" title="Options to show or hide elements">Options</button>
-    
+    <button id="kk-utilities-toggle-background" data-display="block" title="Switches between white and black background">Background</button>
+    <button id="kk-utilities-show-neuropils" data-display="block" title="Shows optic lobe neuropils as separate layers">Show neuropils</button>
+    <button id="kk-utilities-options" title="Options to show or hide elements" data-display="block">Options</button>
   `
 }
