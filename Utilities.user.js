@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.11
+// @version      0.12
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -130,7 +130,8 @@ function main() {
         click: () => optionsDialog.show()
       },
       [`#${ap}options-dialog`]: {
-        click: (e) => optionsDialogToggleFeatures(e)
+        click: (e) => optionsDialogToggleFeatures(e),
+        input: (e) => optionsDialogTextInputHandler(e)
       },
       [`#${ap}toggle-background`]: {
         click: toggleBackground
@@ -163,63 +164,94 @@ function main() {
 
 const optPrefix = ap + 'options-toggle-'
 
+const TYPES = {
+  CHECKBOX: 1,
+  TEXT: 2,
+  NUMBER: 3,
+  TEXTAREA: 4,
+  RANGE: 5
+}
+
 const defaultOptions = {
   [optPrefix + 'jump-to-start']: {
+    type: TYPES.CHECKBOX,
     selector: `#${ap}jump-to-start`,
     text: 'Jump to start',
-    state: true
+    value: true
   },
   [optPrefix + 'add-point-at-start']: {
+    type: TYPES.CHECKBOX,
     selector: `#${ap}add-annotation-at-start-wrapper`,
     text: 'Add point at start',
-    state: true
+    value: true
   },
   [optPrefix + 'remove-points-at-start']: {
+    type: TYPES.CHECKBOX,
     selector: `#${ap}remove-annotations-at-start-wrapper`,
     text: 'Remove points at start',
-    state: true
+    value: true
   },
   [optPrefix + 'resolution-buttons']: {
+    type: TYPES.CHECKBOX,
     selector: `#${ap}res-wrapper`,
     text: 'Resolution buttons',
-    state: true
+    value: true
   },
   [optPrefix + 'toggle-background']: {
+    type: TYPES.CHECKBOX,
     selector: `#${ap}toggle-background`,
     text: 'Background color switch',
-    state: true
+    value: true
   },
   [optPrefix + 'show-neuropils']: {
+    type: TYPES.CHECKBOX,
     selector: `#${ap}show-neuropils`,
     text: 'Show neuropils',
-    state: true
+    value: true
   },
   'neuropils': {
     isGroup: true,
     [optPrefix + 'neuropil-optic-lobe']: {
+      type: TYPES.CHECKBOX,
       selector: `#${ap}neropil-optic-lobe`,
       text: 'Show Optic Lobe',
-      state: true
+      value: true
     },
     [optPrefix + 'neuropil-medulla']: {
+      type: TYPES.CHECKBOX,
       selector: `#${ap}neropil-medulla`,
       text: 'Show Medulla',
-      state: true
+      value: true
     },
     [optPrefix + 'neuropil-lobula']: {
+      type: TYPES.CHECKBOX,
       selector: `#${ap}neropil-lobula`,
       text: 'Show Lobula',
-      state: true
+      value: true
     },
     [optPrefix + 'neuropil-lobula-plate']: {
+      type: TYPES.CHECKBOX,
       selector: `#${ap}neropil-lobula-plate`,
       text: 'Show Lobula Plate',
-      state: true
+      value: true
     },
     [optPrefix + 'neuropil-accessory-medulla']: {
+      type: TYPES.CHECKBOX,
       selector: `#${ap}neropil-accessory-medulla`,
       text: 'Show Accessory Medulla',
-      state: true
+      value: true
+    },
+    [optPrefix + 'neuropil-transparency-on-black']: {
+      type: TYPES.TEXT,
+      selector: `#${ap}neropil-transparency-on-black`,
+      text: 'Neuropil transparency on black background',
+      value: 0.1
+    },
+    [optPrefix + 'neuropil-transparency-on-white']: {
+      type: TYPES.TEXT,
+      selector: `#${ap}neropil-transparency-on-white`,
+      text: 'Neuropil transparency on white background',
+      value: 0.05
     }
   }
 }
@@ -258,7 +290,12 @@ function loadFromLS() {
     saveable.options = defaultOptions
   }
 
-  saveable.options = Object.assign({}, defaultOptions, saveable.options)
+  // we have to override defaultOptions with saveable.options,
+  // but then we're using the object, which was made by combining these two
+  // so we have to assign defaultOptions (now containing options from both object)
+  // to saveable.options
+  Dock.mergeObjects(defaultOptions, saveable.options)
+  saveable.options = defaultOptions
 }
 
 
@@ -513,7 +550,7 @@ function changeResolution(e) {
 }
 
 
-function deleteSplitPoint(e) {//console.log('deleteSplitPoint.event', e)
+function deleteSplitPoint(e) {console.log('deleteSplitPoint.event', e)
   if (!e.ctrlKey) return
 
   let value
@@ -533,7 +570,7 @@ function deleteSplitPoint(e) {//console.log('deleteSplitPoint.event', e)
   if (!value) return
 
   let point = Dock.annotations.getMulticutRef(type, value)
-  //console.log('point', point)
+  console.log('point', point)
   if (!point) return
 
   point.source.delete(point.reference)
@@ -676,17 +713,21 @@ function toggleBackground() {
   }
 
   graphLayer.layer.layersChanged.dispatch()
+  changeNeuropilTransparency(saveable.backgroundColor)
   saveToLS()
 }
 
 
 function showNeuropils() {
   const state = viewer.state.toJSON()
+  const isCurrentBackgroundBlack = saveable.options['kk-utilities-options-toggle-toggle-background'].value
+  const optionName = 'kk-utilities-options-toggle-neuropil-transparency-on-' + (isCurrentBackgroundBlack ? 'black' : 'white')
+  const alpha = saveable.options.neuropils[optionName].value
 
   const opticLobe = {
     "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
     "type": "segmentation",
-    "objectAlpha": 0.38,
+    "objectAlpha": alpha,
     "segmentColors": {
       "2": "#d3b936",
       "6": "#2dc830",
@@ -717,7 +758,7 @@ function showNeuropils() {
   const medulla = {
     "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
     "type": "segmentation",
-    "objectAlpha": 0.38,
+    "objectAlpha": alpha,
     "segmentColors": {
       "2": "#d3b936",
       "43": "#d3a936"
@@ -736,7 +777,7 @@ function showNeuropils() {
   const lobula = {
     "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
     "type": "segmentation",
-    "objectAlpha": 0.38,
+    "objectAlpha": alpha,
     "segmentColors": {
       "14": "#367aba",
       "51": "#367aba"
@@ -755,7 +796,7 @@ function showNeuropils() {
   const lobulaPlate = {
     "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
     "type": "segmentation",
-    "objectAlpha": 0.38,
+    "objectAlpha": alpha,
     "segmentColors": {
       "6": "#2dc830",
       "36": "#2dc830"
@@ -774,7 +815,7 @@ function showNeuropils() {
   const accessoryMedulla = {
     "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
     "type": "segmentation",
-    "objectAlpha": 0.38,
+    "objectAlpha": alpha,
     "segmentColors": {
       "29": "#8736c9",
       "56": "#8736c9"
@@ -813,31 +854,103 @@ function showNeuropils() {
     }
   }
 
+  let aLayerExists = false
   for (const [layerName, value] of Object.entries(neuropils)) {
-    if (!Dock.layers.getByName(layerName).length && saveable.options.neuropils[value.key].state) {
-      state.layers.push(value.settings)
+    let layer = Dock.layers.getByName(layerName)
+    if (layer.length) {
+      Dock.layers.remove(layer[0].index)
+      aLayerExists = true
     }
   }
 
-  viewer.state.restoreState(state)
+  if (!aLayerExists) {
+    for (const [layerName, value] of Object.entries(neuropils)) {
+      if (!Dock.layers.getByName(layerName).length && saveable.options.neuropils[value.key].value) {
+        state.layers.push(value.settings)
+      }
+    }
+
+    viewer.state.restoreState(state)
+  }
+}
+
+
+function generateHtmlForNumber(id, name, value, group) {
+  return /*html*/`
+    <input type="number" id="${id}" data-group="${(group || '')}"  value="${value}">${name}<br />
+  `
+}
+
+
+function generateHtmlForText(id, name, value, group) {
+  return /*html*/`
+    <input type="text" id="${id}" data-group="${(group || '')}"  value="${value}">${name}<br />
+  `
+}
+
+
+function generateHtmlForTextarea(id, name, value, group) {
+  return /*html*/`
+    <textarea id="${id}" data-group="${(group || '')}"  value="${value}">${name}</textarea><br />
+  `
+}
+
+
+function generateHtmlForCheckbox(id, name, value, group) {
+  return /*html*/`
+    <label><input type="checkbox" id="${id}" data-group="${(group || '')}" ${value ? 'checked' : ''}>${name}</label><br />
+  `
+}
+
+
+function generateHtmlForRange(id, name, value, group) {
+  return /*html*/`
+    <label><input
+      type="range"
+      id="${id}"
+      data-group="${(group || '')}"
+      value="${value.value}"
+      min="${value.min}"
+      max="${value.max}"
+      step="${value.step}"
+    >${name}</label><br />
+  `
+}
+
+
+function generateHtmlForInput(type, id, name, value, group) {
+  switch (type) {
+    case TYPES.CHECKBOX: return generateHtmlForCheckbox(id, name, value, group)
+    case TYPES.TEXT: return generateHtmlForText(id, name, value, group)
+    case TYPES.NUMBER: return generateHtmlForNumber(id, name, value, group)
+    case TYPES.TEXTAREA: return generateHtmlForTextarea(id, name, value, group) // TODO: doesn't have a handler
+    case TYPES.RANGE: return generateHtmlForRange(id, name, value, group) // TODO: doesn't have a handler
+  }
 }
 
 
 function generateOptionsHtml() {
   let html = ''
-  for (const [checkboxId, option] of Object.entries(saveable.options)) {
-    if (option.isGroup) {
+  for (const [name, value] of Object.entries(saveable.options)) {
+    if (value.isGroup) {
       html += '<div class="kk-utilities-options-wrapper">'
 
-      for (const [name, opt] of Object.entries(option)) {
-        if (name === 'isGroup') continue
-        html += `<label><input type="checkbox" data-group="${checkboxId}" id="${name}" ${opt.state ? 'checked' : ''}>${opt.text}</label><br />`
+      for (const [subName, subValue] of Object.entries(value)) {
+
+        if (subName === 'isGroup') continue
+        if (subValue.value === undefined) { // to migrate from older version
+          subValue.value = subValue.state
+        }
+        html += generateHtmlForInput(subValue.type, subName, subValue.text, subValue.value, name)
       }
 
       html += '</div>'
     }
     else {
-      html += `<label><input type="checkbox" id="${checkboxId}" ${option.state ? 'checked' : ''}>${option.text}</label><br />`
+      if (value.value === undefined) { // to migrate from older version
+        value.value = value.state
+      }
+      html += generateHtmlForInput(value.type, name, value.text, value.value)
     }
   }
 
@@ -852,7 +965,7 @@ function optionsDialogSettings() {
   return {
     html: generateOptionsHtml(),
     css: /*css*/`
-      #${dialogId} label {
+      #${dialogId} {
         font-size: 13px;
         padding-bottom: 5px;
         display: inline-block;
@@ -862,6 +975,13 @@ function optionsDialogSettings() {
         margin-right: 15px;
       }
 
+      #${dialogId} input[type="text"] {
+        width: 30px !important;
+        margin-right: 10px !important;
+        height: 15px !important;
+        margin-left: 4px !important;
+      }
+
       .kk-utilities-options-wrapper {
         border: 1px solid gray;
         border-radius: 4px;
@@ -869,23 +989,52 @@ function optionsDialogSettings() {
     `,
     id: dialogId,
     okCallback: () => {},
-    okLabel: 'Close'
+    okLabel: 'Close',
+    width: 320,
+    afterCreateCallback: () => {
+      document.querySelectorAll(`#${optPrefix}neuropil-transparency-on-black, #${optPrefix}neuropil-transparency-on-white`).forEach(el => {
+        el.addEventListener('input', e => changeNeuropilTransparencyEventHandler(e))
+      })
+    }
   }
 }
 
 
-function optionsDialogToggleFeature(checkboxId) {
-  const checkbox = document.getElementById(checkboxId)
-  const group = Object.keys(checkbox.dataset).length && checkbox.dataset.group
-  const featureSelector = group ? saveable.options[group][checkboxId].selector : saveable.options[checkboxId].selector
+function changeNeuropilTransparencyEventHandler(e) {
+  changeNeuropilTransparency(e.target.id.includes('black') ? 'black' : 'white', e.target.value)
+}
+
+
+function changeNeuropilTransparency(backgroundColor) {
+  const optionName = 'kk-utilities-options-toggle-neuropil-transparency-on-' + backgroundColor
+  const value = saveable.options.neuropils[optionName].value
+
+  const neuropilLayers = Dock.layers.getByType('segmentation', false)
+  if (!neuropilLayers.length) return
+
+  const currentBackgroundColor = saveable.backgroundColor
+  if (backgroundColor !== currentBackgroundColor) return
+
+  neuropilLayers.forEach(layer => {
+    let alpha = layer.layer.displayState.objectAlpha
+    alpha.value = value
+  })
+}
+
+
+function optionsDialogToggleFeature(elementId) {
+  const element = document.getElementById(elementId)
+  if (!element || element.type !== 'checkbox') return
+  const group = Object.keys(element.dataset).length && element.dataset.group
+  const featureSelector = group ? saveable.options[group][elementId].selector : saveable.options[elementId].selector
   const feature = document.querySelectorAll(featureSelector)
 
-  if (!feature || !checkbox) return
+  if (!feature) return
 
-  const state = checkbox.checked
-  feature.forEach(el => el.style.display = state && Object.keys(el.dataset).length ? el.dataset.display : 'none')
+  const value = element.checked
+  feature.forEach(el => el.style.display = value && Object.keys(el.dataset).length ? el.dataset.display : 'none')
 
-  return state
+  return value
 }
 
 
@@ -893,30 +1042,45 @@ function optionsDialogToggleFeatures(e) {
   let dialogId = ap + 'options-dialog'
   if (e.target.type !== 'checkbox' && e.target.tagName !== 'LABEL') return
   if (e.target.parentNode.parentNode.id !== dialogId &&
-      e.target.parentNode.parentNode.parentNode.id !== dialogId &&
-      e.target.parentNode.parentNode.parentNode.parentNode.id !== dialogId
-    ) return
+      e.target.parentNode.parentNode.parentNode.id !== dialogId) return
 
   let prefix = ap + 'options-toggle-'
-  let checkboxId
+  let elementId
   let featureSelector
   if (e.target.type === 'checkbox') {
-    checkboxId = e.target.id
+    elementId = e.target.id
   }
   else if (e.target.tagName === 'LABEL') {
-    checkboxId = e.target.firstChild.id
+    elementId = e.target.firstChild.id
   }
   else return
 
-  const checkbox = document.getElementById(checkboxId)
-  const state = optionsDialogToggleFeature(checkboxId)
-  const group = Object.keys(checkbox.dataset).length && checkbox.dataset.group
+  const element = document.getElementById(elementId)
+  const value = optionsDialogToggleFeature(elementId)
+  const group = Object.keys(element.dataset).length && element.dataset.group
 
   if (group) {
-    saveable.options[group][checkboxId].state = state
+    saveable.options[group][elementId].value = value
   }
   else {
-    saveable.options[checkboxId].state = state
+    saveable.options[elementId].value = value
+  }
+
+  saveToLS()
+}
+
+
+function optionsDialogTextInputHandler(e) {
+  if (!['text', 'number', 'range'].includes(e.target.type)) return
+  
+  const value = parseFloat(e.target.value)
+
+  if (Object.keys(e.target.dataset).length && e.target.dataset.group) {
+    const group = e.target.dataset.group
+    saveable.options[group][e.target.id].value = value
+  }
+  else {
+    saveable.options[e.target.id].value = value
   }
 
   saveToLS()
@@ -939,7 +1103,7 @@ function generateHtml() {
       <button class="kk-utilities-res" data-resolution="5" title="Changes slides resolution to 5px">5px</button>
     </div>
     <button id="kk-utilities-toggle-background" data-display="block" title="Switches between white and black background">Background</button>
-    <button id="kk-utilities-show-neuropils" data-display="block" title="Shows optic lobe neuropils as separate layers">Show neuropils</button>
+    <button id="kk-utilities-show-neuropils" data-display="block" title="Shows or hides optic lobe neuropils as separate layers">Neuropils</button>
     <button id="kk-utilities-options" title="Options to show or hide elements" data-display="block">Options</button>
   `
 }
