@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.12.1
+// @version      0.12.2
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -361,6 +361,7 @@ function dblClickHandler() {
 
 function jumpToSegment(e) {
   if (!e.target.classList.contains('segment-button')) return
+  if (e.ctrlKey) return changeName(e)
 
   let segId = Object.keys(e.target.dataset).length && e.target.dataset.segId
   let coords = saveable.roots[segId]
@@ -415,6 +416,24 @@ function jumpToSegmentNewWay(segId) {
         requests.push(request)
       }
     }
+  }
+}
+
+
+function changeName(e) {
+  const el = e.target
+  const name = el.textContent
+  Dock.dialog({
+    id: 'kk-utilities-edit-segment-name',
+    html: '<input id="kk-utilities-new-segment-name" value="' + name + '">',
+    okCallback: okCallback,
+    okLabel: 'Save',
+    destroyAfterClosing: true
+  }).show()
+
+  function okCallback() {
+    const newName = document.getElementById('kk-utilities-new-segment-name').value
+    el.textContent = newName
   }
 }
 
