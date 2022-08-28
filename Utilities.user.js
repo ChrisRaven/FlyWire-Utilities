@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.12.2
+// @version      0.12.3
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -30,7 +30,7 @@ let wait = setInterval(() => {
 
 
 // addon prefix - used in all nodes, that have to have an ID
-let ap = 'kk-utilities-'
+const ap = 'kk-utilities-'
 
 
 function fix_segmentColors_2022_07_15() {
@@ -152,7 +152,7 @@ function main() {
         }
       },
       '.neuroglancer-rendered-data-panel': {
-        contextmenu: (e) => {
+        contextmenu: (e) => {console.log('neuroglancer-rendered-data-panel:contextmenu')
           deleteAnnotationPoint(e)
           deleteSplitPoint(e)
         }
@@ -202,7 +202,7 @@ function main() {
     top.appendChild(button)
     top.addEventListener('click', e => testClickHandler(e))
 
-    function testClickHandler(e) {}
+    function testClickHandler(e) { }
   }
 
 
@@ -361,7 +361,6 @@ function dblClickHandler() {
 
 function jumpToSegment(e) {
   if (!e.target.classList.contains('segment-button')) return
-  if (e.ctrlKey) return changeName(e)
 
   let segId = Object.keys(e.target.dataset).length && e.target.dataset.segId
   let coords = saveable.roots[segId]
@@ -420,24 +419,6 @@ function jumpToSegmentNewWay(segId) {
 }
 
 
-function changeName(e) {
-  const el = e.target
-  const name = el.textContent
-  Dock.dialog({
-    id: 'kk-utilities-edit-segment-name',
-    html: '<input id="kk-utilities-new-segment-name" value="' + name + '">',
-    okCallback: okCallback,
-    okLabel: 'Save',
-    destroyAfterClosing: true
-  }).show()
-
-  function okCallback() {
-    const newName = document.getElementById('kk-utilities-new-segment-name').value
-    el.textContent = newName
-  }
-}
-
-
 function openSegmentInNewTab(e) {
   let button = e.target        // e.target === <button>
   if (!button.classList.contains('segment-copy-button')) {
@@ -485,14 +466,12 @@ function fetchHandler(e) {
   // so we only need to update the rootId right before jumping
   if (url.includes('split?')) {
     saveSegmentsAfterSplit(body)
-
     saveToLS()
   }
   else if (url.includes('proofreading_drive?')) {
     saveSegmentAfterClaim(response)
     deletePointsAtStart()
     addAnnotationAtStart()
-
     saveToLS()
   }
   else if (url.includes('split_preview?')) {
@@ -607,7 +586,7 @@ function changeResolution(e) {
 
 function deleteSplitPoint(e) {// console.log('deleteSplitPoint.event', e)
   if (!e.ctrlKey) return
-
+// console.log('after ctrlKey')
   let value
   let type
 
@@ -620,14 +599,16 @@ function deleteSplitPoint(e) {// console.log('deleteSplitPoint.event', e)
     type = 'id'
     value = viewer.mouseState.pickedAnnotationId
   }
-
+  // console.log('value', value)
+  // console.log('type', type)
   
   if (!value) return
-
+// console.log('after value')
   let point = Dock.annotations.getMulticutRef(type, value)
   // console.log('point', point)
   if (!point) return
-
+// console.log('after point')
+// console.log('point.reference', point.reference)
   point.source.delete(point.reference)
   point.reference.dispose()
 }
