@@ -152,7 +152,7 @@ function main() {
         }
       },
       '.neuroglancer-rendered-data-panel': {
-        contextmenu: (e) => {console.log('neuroglancer-rendered-data-panel:contextmenu')
+        contextmenu: (e) => {//console.log('neuroglancer-rendered-data-panel:contextmenu')
           deleteAnnotationPoint(e)
           deleteSplitPoint(e)
         }
