@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.12.3
+// @version      0.12.4
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -361,6 +361,7 @@ function dblClickHandler() {
 
 function jumpToSegment(e) {
   if (!e.target.classList.contains('segment-button')) return
+  if (e.ctrlKey) return
 
   let segId = Object.keys(e.target.dataset).length && e.target.dataset.segId
   let coords = saveable.roots[segId]
