@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.12.4
+// @version      0.13
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -143,6 +143,10 @@ function main() {
       #${ap}show-neuropils {
         margin: auto;
       }
+
+      .selected-segment-button {
+        border: 2px solid orange;
+      }
       `,
     events: {
       '.neuroglancer-rendered-data-panel:first-of-type': {
@@ -155,6 +159,7 @@ function main() {
         contextmenu: (e) => {//console.log('neuroglancer-rendered-data-panel:contextmenu')
           deleteAnnotationPoint(e)
           deleteSplitPoint(e)
+          jumpToSegmentButton(e)
         }
       },
       '.neuroglancer-layer-side-panel': {
@@ -417,6 +422,28 @@ function jumpToSegmentNewWay(segId) {
       }
     }
   }
+}
+
+
+function jumpToSegmentButton(e) {
+  if (!e.ctrlKey) return
+
+  const graphLayer = Dock.layers.getByType('segmentation_with_graph', false)[0].layer
+  let id = graphLayer.manager.layerSelectedValues.get(graphLayer)
+
+  if (id === null) return
+  
+  if (id.value) {
+    id = id.value
+  }
+  id = id.toString()
+  const element = document.querySelector('[data-seg-id="' + id + '"]')
+  
+  if (!element) return
+
+  document.getElementsByClassName('selected-segment-button').forEach(el => el.classList.remove('selected-segment-button'))
+  element.scrollIntoView()
+  element.parentElement.classList.add('selected-segment-button')
 }
 
 
