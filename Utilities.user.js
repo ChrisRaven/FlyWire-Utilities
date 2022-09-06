@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.13
+// @version      0.14
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -147,6 +147,13 @@ function main() {
       .selected-segment-button {
         border: 2px solid orange;
       }
+
+      #${ap}display-number-of-segments {
+        display: inline-block;
+        margin-top: 9px;
+        color: #999;
+        padding-left: 10px;
+      }
       `,
     events: {
       '.neuroglancer-rendered-data-panel:first-of-type': {
@@ -199,6 +206,8 @@ function main() {
   document.addEventListener('fetch', e => fetchHandler(e))
   document.addEventListener('contextmenu', e => hideAllButHandler(e))
   initFields()
+
+  Dock.addToRightTab('segmentation_with_graph', 'rendering', displayNumberOfSegments)
 
   if (typeof DEV !== 'undefined') {
     let button = document.createElement('button')
@@ -257,13 +266,19 @@ const options = {
     featureSelector: `#${ap}toggle-background`,
     text: 'Background color switch'
   },
+  displayNumberOfSegments: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'display-number-of-segments',
+    featureSelector: `#${ap}display-number-of-segments`,
+    text: 'Display number of segments'
+  },
   showNeuropils: {
     type: TYPES.CHECKBOX,
     optionSelector: op + 'show-neuropils',
     featureSelector: `#${ap}show-neuropils`,
     text: 'Show neuropils'
   },
-  'neuropils': {
+  neuropils: {
     isGroup: true,
     neuropils_opticLobe: {
       type: TYPES.CHECKBOX,
@@ -326,7 +341,8 @@ let saveable = {
   neuropils_blackBackgroundTransparency: 0.1,
   neuropils_whiteBackgroundTransparency: 0.05,
   currentResolutionButton: 1,
-  backgroundColor: 'black'
+  backgroundColor: 'black',
+  displayNumberOfSegments: true
 }
 
 
@@ -1120,6 +1136,31 @@ function changeNeuropilTransparency(backgroundColor, value) {
   })
   saveable[optionName] = value
   saveToLS()
+}
+
+
+function displayNumberOfSegments() {
+  const addSegment = document.getElementsByClassName('add-segment')[0]
+  addSegment.style.display = 'inline-block'
+  const counter = document.createElement('div')
+  counter.id = ap + 'display-number-of-segments'
+  counter.style.display = saveable.visibleFeatures.displayNumberOfSegments ? 'inline-block' : 'none'
+  counter.dataset.display = 'inline-block'
+  counter.title = 'Number of visible segments (all segments)'
+  addSegment.after(counter)
+
+  const graphLayer = Dock.layers.getByType('segmentation_with_graph', false)[0]
+  const displayState = graphLayer.layer.displayState
+  displayState.rootSegments.changed.add(() => {
+    updateCounters()
+  })
+  updateCounters()
+
+  function updateCounters() {
+    const visibleSegments = displayState.rootSegments.toJSON().length
+    const hiddenSegments = displayState.hiddenRootSegments.toJSON().length
+    counter.textContent = visibleSegments + ' (' + (visibleSegments + hiddenSegments) + ')'
+  }
 }
 
 
