@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.14
+// @version      0.14.1
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -151,7 +151,6 @@ function main() {
       #${ap}display-number-of-segments {
         display: inline-block;
         margin-top: 9px;
-        color: #999;
         padding-left: 10px;
       }
       `,
@@ -1144,7 +1143,8 @@ function displayNumberOfSegments() {
   addSegment.style.display = 'inline-block'
   const counter = document.createElement('div')
   counter.id = ap + 'display-number-of-segments'
-  counter.style.display = saveable.visibleFeatures.displayNumberOfSegments ? 'inline-block' : 'none'
+  const notDefined = saveable.visibleFeatures.displayNumberOfSegments === undefined
+  counter.style.display = notDefined || saveable.visibleFeatures.displayNumberOfSegments ? 'inline-block' : 'none'
   counter.dataset.display = 'inline-block'
   counter.title = 'Number of visible segments (all segments)'
   addSegment.after(counter)
