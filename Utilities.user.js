@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.14.1
+// @version      0.14.2
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -206,7 +206,7 @@ function main() {
   document.addEventListener('contextmenu', e => hideAllButHandler(e))
   initFields()
 
-  Dock.addToRightTab('segmentation_with_graph', 'rendering', displayNumberOfSegments)
+  Dock.addToRightTab('segmentation_with_graph', 'rendering', displayNumberOfSegments, '#' + ap + 'display-number-of-segments')
 
   if (typeof DEV !== 'undefined') {
     let button = document.createElement('button')
@@ -1139,10 +1139,15 @@ function changeNeuropilTransparency(backgroundColor, value) {
 
 
 function displayNumberOfSegments() {
+  const id = ap + 'display-number-of-segments'
+  if (document.getElementById(id)) return
+
   const addSegment = document.getElementsByClassName('add-segment')[0]
+  if (!addSegment) return
+
   addSegment.style.display = 'inline-block'
   const counter = document.createElement('div')
-  counter.id = ap + 'display-number-of-segments'
+  counter.id = id
   const notDefined = saveable.visibleFeatures.displayNumberOfSegments === undefined
   counter.style.display = notDefined || saveable.visibleFeatures.displayNumberOfSegments ? 'inline-block' : 'none'
   counter.dataset.display = 'inline-block'
