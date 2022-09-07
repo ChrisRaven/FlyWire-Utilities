@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.14.3
+// @version      0.14.2
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -161,6 +161,13 @@ function main() {
           singleNode: true
         }
       },
+      '.neuroglancer-rendered-data-panel': {
+        contextmenu: (e) => {
+          deleteAnnotationPoint(e)
+          deleteSplitPoint(e)
+          jumpToSegmentButton(e)
+        }
+      },
       '.neuroglancer-layer-side-panel': {
         contextmenu: (e) => {
           jumpToSegment(e)
@@ -199,7 +206,6 @@ function main() {
   document.addEventListener('contextmenu', e => hideAllButHandler(e))
   initFields()
 
-  Dock.addToMainTab('segmentation_with_graph', assignMainTabEvents)
   Dock.addToRightTab('segmentation_with_graph', 'rendering', displayNumberOfSegments)
 
   if (typeof DEV !== 'undefined') {
@@ -211,6 +217,7 @@ function main() {
 
     function testClickHandler(e) { }
   }
+
 
   fix_segmentColors_2022_07_15()
   fix_visibilityOptions_2022_07_30()
@@ -356,18 +363,6 @@ function clearLists() {
   saveable.roots = {}
   saveable.leaves = {}
   saveToLS()
-}
-
-
-function assignMainTabEvents() {
-  // setTimeout, because the changed event is called, when the elements aren't yet available in the DOM
-  setTimeout(() => {
-    document.getElementsByClassName('neuroglancer-rendered-data-panel')[0].addEventListener('contextmenu', (e) => {
-      deleteAnnotationPoint(e)
-      deleteSplitPoint(e)
-      jumpToSegmentButton(e)
-    })
-  }, 0)
 }
 
 
