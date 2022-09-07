@@ -206,7 +206,7 @@ function main() {
   document.addEventListener('contextmenu', e => hideAllButHandler(e))
   initFields()
 
-  Dock.addToRightTab('segmentation_with_graph', 'rendering', displayNumberOfSegments, '#' + ap + 'display-number-of-segments')
+  Dock.addToRightTab('segmentation_with_graph', 'rendering', displayNumberOfSegments)
 
   if (typeof DEV !== 'undefined') {
     let button = document.createElement('button')
