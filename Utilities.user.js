@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.14.3
+// @version      0.14.3.1
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -200,7 +200,7 @@ function main() {
   initFields()
 
   Dock.addToMainTab('segmentation_with_graph', assignMainTabEvents)
-  Dock.addToRightTab('segmentation_with_graph', 'rendering', displayNumberOfSegments)
+  Dock.addToRightTab('segmentation_with_graph', 'Rendering', displayNumberOfSegments)
 
   if (typeof DEV !== 'undefined') {
     let button = document.createElement('button')
