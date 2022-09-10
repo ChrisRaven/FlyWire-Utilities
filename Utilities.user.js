@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.14.3.1
+// @version      0.14.4
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -498,8 +498,27 @@ function openSegmentInNewTab(e) {
 
   let url = new URL(unsafeWindow.location.href)
   let randomString = Dock.getRandomHexString()
-  let lsName = 'neuroglancerSaveState_v2-' + randomString
-  localStorage.setItem(lsName, JSON.stringify(state))
+  const stateKey = 'neuroglancerSaveState_v2'
+  let lsName = stateKey + '-' + randomString
+
+  // Source: neuroglancer/save_state/savet_state.ts -> SaveState -> robustSet()
+  while (true) {
+    try {
+      localStorage.setItem(lsName, JSON.stringify(state))
+      break
+    }
+    catch (e) {
+      
+      const manager = JSON.parse(localStorage.getItem(stateKey))
+      if (!manager.length) throw e
+
+      const targets = manager.splice(0, 1);
+      const serializedManager = JSON.stringify(manager);
+      localStorage.setItem(stateKey, serializedManager);
+      targets.forEach(key => localStorage.removeItem(`${stateKey}-${key}`));
+    }
+  }
+
   unsafeWindow.open(url.origin + '/?local_id=' + randomString, '_blank')
 }
 
