@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.14.4
+// @version      0.14.5
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -362,11 +362,12 @@ function clearLists() {
 function assignMainTabEvents() {
   // setTimeout, because the changed event is called, when the elements aren't yet available in the DOM
   setTimeout(() => {
-    document.getElementsByClassName('neuroglancer-rendered-data-panel')[0].addEventListener('contextmenu', (e) => {
-      deleteAnnotationPoint(e)
-      deleteSplitPoint(e)
-      jumpToSegmentButton(e)
-    })
+    document.getElementsByClassName('neuroglancer-rendered-data-panel')
+      .forEach(panel => panel.addEventListener('contextmenu', (e) => {
+        deleteAnnotationPoint(e)
+        deleteSplitPoint(e)
+        jumpToSegmentButton(e)
+      }))
   }, 0)
 }
 
@@ -448,20 +449,10 @@ function jumpToSegmentNewWay(segId) {
 function jumpToSegmentButton(e) {
   if (!e.ctrlKey) return
 
-  const graphLayer = Dock.layers.getByType('segmentation_with_graph', false)[0].layer
-  let id = graphLayer.manager.layerSelectedValues.get(graphLayer)
-
-  if (id === null) return
-  
-  if (id.value) {
-    id = id.value
-  }
-  id = id.toString()
-  const element = document.querySelector('[data-seg-id="' + id + '"]')
-  
+  document.getElementsByClassName('selected-segment-button').forEach(el => el.classList.remove('selected-segment-button'))
+  const element = document.getElementsByClassName('selectedSeg')[0]
   if (!element) return
 
-  document.getElementsByClassName('selected-segment-button').forEach(el => el.classList.remove('selected-segment-button'))
   element.scrollIntoView()
   element.parentElement.classList.add('selected-segment-button')
 }
