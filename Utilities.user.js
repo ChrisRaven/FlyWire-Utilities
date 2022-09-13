@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.14.5
+// @version      0.15
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -164,7 +164,7 @@ function main() {
       '.neuroglancer-layer-side-panel': {
         contextmenu: (e) => {
           jumpToSegment(e)
-          openSegmentInNewTab(e)
+          openSegmentsInNewTabHandler(e)
         }
       },
       [`#${ap}jump-to-start`]: {
@@ -201,6 +201,7 @@ function main() {
 
   Dock.addToMainTab('segmentation_with_graph', assignMainTabEvents)
   Dock.addToRightTab('segmentation_with_graph', 'Rendering', displayNumberOfSegments)
+  Dock.addToRightTab('segmentation_with_graph', 'Rendering', addActionsMenu)
 
   if (typeof DEV !== 'undefined') {
     let button = document.createElement('button')
@@ -458,7 +459,7 @@ function jumpToSegmentButton(e) {
 }
 
 
-function openSegmentInNewTab(e) {
+function openSegmentsInNewTabHandler(e) {
   let button = e.target        // e.target === <button>
   if (!button.classList.contains('segment-copy-button')) {
     button = button.parentNode // e.target === <svg>
@@ -468,49 +469,81 @@ function openSegmentInNewTab(e) {
   }
   if (!button.classList.contains('segment-copy-button')) return
 
-  let state = viewer.saver.pull()
+  const state = viewer.saver.pull()
+  let ids
   if (e.ctrlKey) {
     state.state.layers.forEach(layer => {
       if (layer.type !== 'segmentation_with_graph') return
 
-      layer.hiddenSegments = []
+      ids = layer.segments
     })
   }
   else {
-    let segId = Object.keys(button.previousElementSibling.dataset).length && button.previousElementSibling.dataset.segId
-  
+    ids = Object.keys(button.previousElementSibling.dataset).length && button.previousElementSibling.dataset.segId
+  }
+
+  if (!ids) return
+
+  openSegmentsInNewTab(ids)
+}
+
+
+function openSegmentsInNewTab(ids) {
+
+  function prepareState(ids) {
+    const state = viewer.saver.pull()
+
     state.state.layers.forEach(layer => {
       if (layer.type !== 'segmentation_with_graph') return
 
-      layer.segments = [segId]
+      layer.segments = ids
       layer.hiddenSegments = []
     })
+
+    return state
   }
 
-  let url = new URL(unsafeWindow.location.href)
-  let randomString = Dock.getRandomHexString()
-  const stateKey = 'neuroglancerSaveState_v2'
-  let lsName = stateKey + '-' + randomString
+  function addToLS(state) {
+    const stateId = Dock.getRandomHexString()
+    const stateKey = 'neuroglancerSaveState_v2'
+    const lsName = stateKey + '-' + stateId
+    
+    // Source: neuroglancer/save_state/savet_state.ts -> SaveState -> robustSet()
+    while (true) {
+      try {
+        localStorage.setItem(lsName, JSON.stringify(state))
+        let stateManager = localStorage.getItem(stateKey)
+        if (stateManager) {
+          stateManager = JSON.parse(stateManager)
+          stateManager.push(stateId)
+          localStorage.setItem(stateKey, JSON.stringify(stateManager))
+        }
+        break
+      }
+      catch (e) {
+        
+        const manager = JSON.parse(localStorage.getItem(stateKey))
+        if (!manager.length) throw e
 
-  // Source: neuroglancer/save_state/savet_state.ts -> SaveState -> robustSet()
-  while (true) {
-    try {
-      localStorage.setItem(lsName, JSON.stringify(state))
-      break
+        const targets = manager.splice(0, 1);
+        const serializedManager = JSON.stringify(manager)
+        localStorage.setItem(stateKey, serializedManager)
+        targets.forEach(key => localStorage.removeItem(`${stateKey}-${key}`))
+      }
     }
-    catch (e) {
-      
-      const manager = JSON.parse(localStorage.getItem(stateKey))
-      if (!manager.length) throw e
 
-      const targets = manager.splice(0, 1);
-      const serializedManager = JSON.stringify(manager);
-      localStorage.setItem(stateKey, serializedManager);
-      targets.forEach(key => localStorage.removeItem(`${stateKey}-${key}`));
-    }
+    return stateId
   }
 
-  unsafeWindow.open(url.origin + '/?local_id=' + randomString, '_blank')
+  function openInNewTab(stateId) {
+    const url = new URL(unsafeWindow.location.href)
+
+    unsafeWindow.open(url.origin + '/?local_id=' + stateId, '_blank')
+  }
+
+  const newState = prepareState(ids)
+  const stateId = addToLS(newState)
+  openInNewTab(stateId)
 }
 
 
@@ -1031,6 +1064,180 @@ function displayNumberOfSegments() {
     counter.textContent = visibleSegments + ' (' + (visibleSegments + hiddenSegments) + ')'
   }
 }
+
+
+function addActionsMenu() {
+  const id = 'kk-utilities-action-menu'
+  if (document.getElementById(id)) return
+
+  const target = document.getElementsByClassName('top-buttons')[0]
+  if (!target) return
+
+  const menu = document.createElement('select')
+  menu.id = id
+
+  const defaultOption = new Option('-- actions --', ' ')
+  defaultOption.selected = true
+  defaultOption.disabled = true
+  defaultOption.hidden = true
+  menu.add(defaultOption)
+
+  const options = [
+    ['Show completed only', 'show-completed-only'],
+    ['Show incompleted only', 'show-incompleted-only'],
+    ['Show outdated only', 'Show outdated-only'],
+
+    ['Hide completed', 'hide-completed'],
+    ['Hide incompleted', 'hide-incompleted'],
+    ['Hide outdated', 'hide-outdated'],
+
+    ['Open completed in new tab', 'open-completed-in-new-tab'],
+    ['Open incompleted in new tab', 'open-incompleted-in-new-tab'],
+    ['Open outdated in new tab', 'open-outdated-in-new-tab'],
+
+    ['Remove completed', 'remove-completed'],
+    ['Remove incompleted', 'remove-incompleted'],
+    ['Remove outdated', 'remove-outdated']
+  ]
+
+  options.forEach(option => {
+    menu.add(new Option(option[0], option[1]))
+  })
+
+  target.after(menu)
+
+  addActionsEvents()
+}
+
+
+function addActionsEvents() {
+  const menu = document.getElementById('kk-utilities-action-menu')
+  if (!menu) return
+
+  menu.addEventListener('change', e => {
+    actionsHandler(e)
+    menu.selectedIndex = 0
+  })
+}
+
+
+function actionsHandler(e) {
+  const segments = document.getElementsByClassName('segment-div')
+  /*
+    .lightbulb.active - completed
+    .lightbulb - normal
+    .lightbulb.error.outdated - outdated
+    .lightbulb.error - unknown
+  */
+  
+  const completed = []
+  const normal = []
+  const outdated = []
+  const unknown = []
+
+  segments.forEach(segment => {
+    const lightbulb = segment.getElementsByClassName('nge-segment-changelog-button')[0]
+    if (!lightbulb) return
+
+    if (lightbulb.classList.contains('active')) {
+      completed.push(segment)
+    }
+    else if (lightbulb.classList.contains('outdated')) {
+      outdated.push(segment)
+    }
+    else if (lightbulb.classList.contains('error')) {
+      unknown.push(segment)
+    }
+    else {
+      normal.push(segment)
+    }
+  })
+
+  function hideAll() {
+    segments.forEach(segment => {
+      const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
+      if (checkbox.checked) {
+        checkbox.click()
+      }
+    })
+  }
+
+  function show(type) {
+    hideAll()
+    type.forEach(segment => {
+      const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
+      if (!checkbox.checked) {
+        checkbox.click()
+      }
+    })
+  }
+
+  function hide(type) {
+    type.forEach(segment => {
+      const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
+      if (checkbox.checked) {
+        checkbox.click()
+      }
+    })
+  }
+
+  function openInNewTab(type) {
+    const ids = type.map(segment => {
+      return segment.getElementsByClassName('segment-button')[0].dataset.segId
+    })
+
+    if (!ids) return
+
+    openSegmentsInNewTab(ids)
+  }
+
+  function remove(type) {
+    type.forEach(segment => segment.getElementsByClassName('segment-button')[0].click())
+  }
+
+  switch (e.target.value) {
+    case 'show-completed-only':
+      show(completed)
+      break
+    case 'show-incompleted-only':
+      show(normal)
+      break
+    case 'Show outdated-only':
+      show(outdated)
+      break
+
+    case 'hide-completed':
+      hide(completed)
+      break
+    case 'hide-incompleted':
+      hide(normal)
+      break
+    case 'hide-outdated':
+      hide(outdated)
+      break
+
+    case 'open-completed-in-new-tab':
+      openInNewTab(completed)
+      break
+    case 'open-incompleted-in-new-tab':
+      openInNewTab(normal)
+      break
+    case 'open-outdated-in-new-tab':
+      openInNewTab(outdated)
+      break
+
+    case 'remove-completed':
+      remove(completed)
+      break
+    case 'remove-incompleted':
+      remove(normal)
+      break
+    case 'remove-outdated':
+      remove(outdated)
+      break
+  }
+}
+
 
 // below only code for options
 function generateHtmlForNumber(optionName, params, value, group) {
