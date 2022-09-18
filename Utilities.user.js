@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.15
+// @version      0.15.1
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -479,7 +479,7 @@ function openSegmentsInNewTabHandler(e) {
     })
   }
   else {
-    ids = Object.keys(button.previousElementSibling.dataset).length && button.previousElementSibling.dataset.segId
+    ids = Object.keys(button.previousElementSibling.dataset).length && [button.previousElementSibling.dataset.segId]
   }
 
   if (!ids) return
@@ -503,6 +503,7 @@ function openSegmentsInNewTab(ids) {
     return state
   }
 
+  // TODO: move to Dock as "saveNeuroglancerState" and add "getNeuroglancerState" method there
   function addToLS(state) {
     const stateId = Dock.getRandomHexString()
     const stateKey = 'neuroglancerSaveState_v2'
