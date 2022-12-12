@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.15.1
+// @version      0.16
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -1057,6 +1057,9 @@ function displayNumberOfSegments() {
   displayState.rootSegments.changed.add(() => {
     updateCounters()
   })
+  displayState.hiddenRootSegments.changed.add(() => {
+    updateCounters()
+  })
   updateCounters()
 
   function updateCounters() {
@@ -1095,10 +1098,14 @@ function addActionsMenu() {
     ['Open completed in new tab', 'open-completed-in-new-tab'],
     ['Open incompleted in new tab', 'open-incompleted-in-new-tab'],
     ['Open outdated in new tab', 'open-outdated-in-new-tab'],
+    ['Open visible in new tab', 'open-visible-in-new-tab'],
+    ['Open hidden in new tab', 'open-hidden-in-new-tab'],
 
     ['Remove completed', 'remove-completed'],
     ['Remove incompleted', 'remove-incompleted'],
-    ['Remove outdated', 'remove-outdated']
+    ['Remove outdated', 'remove-outdated'],
+    ['Remove visible', 'remove-visible'],
+    ['Remove hidden', 'remove-hidden']
   ]
 
   options.forEach(option => {
@@ -1135,9 +1142,13 @@ function actionsHandler(e) {
   const normal = []
   const outdated = []
   const unknown = []
+  const visible = []
+  const hidden = []
 
   segments.forEach(segment => {
     const lightbulb = segment.getElementsByClassName('nge-segment-changelog-button')[0]
+    const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
+
     if (!lightbulb) return
 
     if (lightbulb.classList.contains('active')) {
@@ -1151,6 +1162,13 @@ function actionsHandler(e) {
     }
     else {
       normal.push(segment)
+    }
+
+    if (checkbox.checked) {
+      visible.push(segment)
+    }
+    else {
+      hidden.push(segment)
     }
   })
 
@@ -1226,6 +1244,12 @@ function actionsHandler(e) {
     case 'open-outdated-in-new-tab':
       openInNewTab(outdated)
       break
+    case 'open-visible-in-new-tab':
+      openInNewTab(visible)
+      break
+    case 'open-hidden-in-new-tab':
+      openInNewTab(hidden)
+      break
 
     case 'remove-completed':
       remove(completed)
@@ -1235,6 +1259,12 @@ function actionsHandler(e) {
       break
     case 'remove-outdated':
       remove(outdated)
+      break
+    case 'remove-visible':
+      remove(visible)
+      break
+    case 'remove-hidden':
+      remove(hidden)
       break
   }
 }
