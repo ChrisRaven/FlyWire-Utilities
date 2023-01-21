@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.18
+// @version      0.19
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -134,7 +134,8 @@ function main() {
       #${ap}add-annotation-at-start-wrapper,
       #${ap}remove-annotations-at-start-wrapper,
       #${ap}show-neuropils,
-      #${ap}res-wrapper {
+      #${ap}res-wrapper,
+      #${ap}copy-position {
         display: block;
       }
 
@@ -191,6 +192,12 @@ function main() {
       },
       [`#${ap}show-neuropils`]: {
         click: showNeuropils
+      },
+      [`#${ap}copy-position-copy`]: {
+        click: copyPosition
+      },
+      [`#${ap}copy-position-paste`]: {
+        click: pastePosition
       }
     }
   })
@@ -270,6 +277,12 @@ const options = {
     featureSelector: `#${ap}show-neuropils`,
     text: 'Show neuropils'
   },
+  copyPosition: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'copy-position',
+    featureSelector: `#${ap}copy-position-wrapper`,
+    text: 'Copy position'
+  },
   neuropils: {
     isGroup: true,
     neuropils_opticLobe: {
@@ -323,7 +336,8 @@ let saveable = {
     removePointsAtStart: true,
     resolutionButtons: true,
     background: true,
-    neuropils: true
+    neuropils: true,
+    copyPosition: true,
   },
   neuropils_opticLobe: true,
   neuropils_medulla: true,
@@ -1069,6 +1083,62 @@ function displayNumberOfSegments() {
 }
 
 
+function copyPosition() {
+  const pose = viewer.perspectiveNavigationState.pose
+
+  const data = {
+    zoom: viewer.perspectiveNavigationState.zoomFactor.value,
+
+    coords0: pose.position.spatialCoordinates[0],
+    coords1: pose.position.spatialCoordinates[1],
+    coords2: pose.position.spatialCoordinates[2],
+
+    orient0: pose.orientation.orientation[0],
+    orient1: pose.orientation.orientation[1],
+    orient2: pose.orientation.orientation[2],
+    orient3: pose.orientation.orientation[3]
+  }
+
+  navigator.clipboard.writeText(JSON.stringify(data))
+}
+
+
+function pastePosition() {
+  const pose = viewer.perspectiveNavigationState.pose
+
+  navigator.clipboard.readText()
+    .then(data => {
+      try {
+        data = JSON.parse(data)
+
+        if (data.zoom !== undefined) {
+          viewer.perspectiveNavigationState.zoomFactor.value = data.zoom
+        }
+
+        if (data.coords0 !== undefined) {
+          pose.position.spatialCoordinates[0] = data.coords0
+          pose.position.spatialCoordinates[1] = data.coords1
+          pose.position.spatialCoordinates[2] = data.coords2
+
+          pose.position.markSpatialCoordinatesChanged()
+        }
+
+        if (data.orient1 !== undefined) {
+          pose.orientation.orientation[0] = data.orient0
+          pose.orientation.orientation[1] = data.orient1
+          pose.orientation.orientation[2] = data.orient2
+          pose.orientation.orientation[3] = data.orient3
+
+          pose.orientation.changed.dispatch()
+        }
+      }
+      catch {
+        console.error('Incorrect data in the clipboard')
+      }
+    })
+}
+
+
 // below only code for options
 function generateHtmlForNumber(optionName, params, value, group) {
   return /*html*/`
@@ -1300,6 +1370,10 @@ function generateHtml() {
     </div>
     <button id="kk-utilities-toggle-background" data-display="block" title="Switches between white and black background">Background</button>
     <button id="kk-utilities-show-neuropils" data-display="block" title="Shows or hides optic lobe neuropils as separate layers">Neuropils</button>
+    <div id="kk-utilities-copy-position-wrapper" data-display="block">
+      <button id="kk-utilities-copy-position-copy" title="Copy current position">C-Pos</button>
+      <button id="kk-utilities-copy-position-paste" title="Paste copied position">P-Pos</button>
+    </div>
     <button id="kk-utilities-options" title="Options to show or hide elements" data-display="block">Options</button>
   `
 }
