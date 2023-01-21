@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.19
+// @version      0.20
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -114,6 +114,10 @@ function fix_optionsOrganization_2022_08_15() {
 }
 
 
+let shift = false
+let ctrl = false
+let removeWithCtrlShift = false
+
 function main() {
   fix_optionsOrganization_2022_08_15()
   loadFromLS()
@@ -221,6 +225,39 @@ function main() {
 
   fix_segmentColors_2022_07_15()
   fix_visibilityOptions_2022_07_30()
+
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey) {
+      ctrl = true
+    }
+
+    if (e.shiftKey) {
+      shift = true
+    }
+  })
+
+  document.addEventListener('keyup', e => {
+    // e.ctrlKey and e.shiftKey don't work for some reason
+    if (e.key === 'Control') {
+      ctrl = false
+    }
+
+    if (e.key === 'Shift') {
+      shift = false
+    }
+  })
+
+  viewer.mouseState.changed.add(() => {
+    if (ctrl && shift && removeWithCtrlShift) {
+      const id = viewer.mouseState.pickedValue.toJSON()
+      if (id) {
+        const element = document.querySelector(`button[data-seg-id="${id}"]`)
+        if (element) {
+          element.click()
+        }
+      }
+    }
+  })
 }
 
 
@@ -283,6 +320,11 @@ const options = {
     featureSelector: `#${ap}copy-position-wrapper`,
     text: 'Copy position'
   },
+  removeWithCtrlShift: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'remove-with-ctrl-shift',
+    text: 'Remove segments when Ctrl and Shift are pressed'
+  },
   neuropils: {
     isGroup: true,
     neuropils_opticLobe: {
@@ -338,6 +380,7 @@ let saveable = {
     background: true,
     neuropils: true,
     copyPosition: true,
+    removeWithCtrlShift: false
   },
   neuropils_opticLobe: true,
   neuropils_medulla: true,
@@ -357,6 +400,7 @@ function loadFromLS() {
 
   if (data) {
     Dock.mergeObjects(saveable, data)
+    removeWithCtrlShift = saveable.visibleFeatures.removeWithCtrlShift
   }
 }
 
@@ -1281,7 +1325,7 @@ function optionsDialogSettings() {
     id: dialogId,
     okCallback: () => {},
     okLabel: 'Close',
-    width: 320,
+    width: 330,
     afterCreateCallback: () => {
       document.querySelectorAll(`#${op}neuropil-transparency-on-black, #${op}neuropil-transparency-on-white`).forEach(el => {
         el.addEventListener('input', e => changeNeuropilTransparencyEventHandler(e))
@@ -1301,6 +1345,11 @@ function optionsDialogToggleFeature(optionName, value) {
 
   const state = element.checked
   feature.forEach(el => el.style.display = state && Object.keys(el.dataset).length ? el.dataset.display : 'none')
+
+  if (optionName === 'removeWithCtrlShift') {
+    console.log(value.optionSelector)
+    removeWithCtrlShift = document.getElementById(value.optionSelector).checked
+  }
 
   return state
 }
