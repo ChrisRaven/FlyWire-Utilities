@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.20
+// @version      0.20.0.1
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
+// @match        https://proofreading.flywire.ai/*
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
 // @connect      services.itanna.io
