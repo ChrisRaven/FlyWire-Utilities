@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.20.0.1
+// @version      0.20.0.2
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -1348,7 +1348,6 @@ function optionsDialogToggleFeature(optionName, value) {
   feature.forEach(el => el.style.display = state && Object.keys(el.dataset).length ? el.dataset.display : 'none')
 
   if (optionName === 'removeWithCtrlShift') {
-    console.log(value.optionSelector)
     removeWithCtrlShift = document.getElementById(value.optionSelector).checked
   }
 
