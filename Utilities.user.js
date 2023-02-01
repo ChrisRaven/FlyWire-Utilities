@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.20.0.2
+// @version      0.20.1
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -248,16 +248,20 @@ function main() {
     }
   })
 
+  let prevPrevId = null
+  let prevId = null
   viewer.mouseState.changed.add(() => {
-    if (ctrl && shift && removeWithCtrlShift) {
-      const id = viewer.mouseState.pickedValue.toJSON()
-      if (id) {
-        const element = document.querySelector(`button[data-seg-id="${id}"]`)
-        if (element) {
-          element.click()
-        }
+    if (!ctrl || !shift || !removeWithCtrlShift) return
+
+    const id = viewer.mouseState.pickedValue.toJSON()
+    if (id && prevId && prevPrevId && prevId === id && prevPrevId === id) {
+      const element = document.querySelector(`button[data-seg-id="${id}"]`)
+      if (element) {
+        element.click()
       }
     }
+    prevPrevId = prevId
+    prevId = id
   })
 }
 
