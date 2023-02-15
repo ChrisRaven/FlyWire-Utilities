@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.20.2
+// @version      0.21
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -117,7 +117,9 @@ function fix_optionsOrganization_2022_08_15() {
 
 let shift = false
 let ctrl = false
+let alt = false
 let removeWithCtrlShift = false
+let hideWithAltShift = false
 
 function main() {
   fix_optionsOrganization_2022_08_15()
@@ -235,6 +237,10 @@ function main() {
     if (e.shiftKey) {
       shift = true
     }
+
+    if (e.altKey) {
+      alt = true
+    }
   })
 
   document.addEventListener('keyup', e => {
@@ -246,22 +252,39 @@ function main() {
     if (e.key === 'Shift') {
       shift = false
     }
+
+    if (e.key === 'Alt') {
+      alt = false
+    }
   })
 
   let prevPrevId = null
   let prevId = null
   viewer.mouseState.changed.add(() => {
-    if (!ctrl || !shift || !removeWithCtrlShift) return
-
-    const id = viewer.mouseState.pickedValue.toJSON()
-    if (id && prevId && prevPrevId && prevId === id && prevPrevId === id) {
-      const element = document.querySelector(`button[data-seg-id="${id}"]`)
-      if (element) {
-        element.click()
+    if (ctrl && shift && removeWithCtrlShift) {
+      const id = viewer.mouseState.pickedValue.toJSON()
+      if (id && prevId && prevPrevId && prevId === id && prevPrevId === id) {
+        const element = document.querySelector(`button[data-seg-id="${id}"]`)
+        if (element) {
+          element.click()
+        }
       }
+      prevPrevId = prevId
+      prevId = id
     }
-    prevPrevId = prevId
-    prevId = id
+    if (alt && shift && hideWithAltShift) {
+      const id = viewer.mouseState.pickedValue.toJSON()
+      if (id && prevId && prevPrevId && prevId === id && prevPrevId === id) {
+        let element = document.querySelector(`button[data-seg-id="${id}"]`)
+        if (element) {
+          element = element.parentElement.querySelector('input[type="checkbox"]')
+          element.click()
+        }
+      }
+
+      prevPrevId = prevId
+      prevId = id
+    }
   })
 }
 
@@ -330,6 +353,11 @@ const options = {
     optionSelector: op + 'remove-with-ctrl-shift',
     text: 'Remove segments when Ctrl and Shift are pressed'
   },
+  hideWithAltShift: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'hide-with-alt-shift',
+    text: 'Hide segments when Alt and Shift are pressed'
+  },
   neuropils: {
     isGroup: true,
     neuropils_opticLobe: {
@@ -385,7 +413,8 @@ let saveable = {
     background: true,
     neuropils: true,
     copyPosition: true,
-    removeWithCtrlShift: false
+    removeWithCtrlShift: false,
+    hideWithAltShift: false
   },
   neuropils_opticLobe: true,
   neuropils_medulla: true,
@@ -406,6 +435,7 @@ function loadFromLS() {
   if (data) {
     Dock.mergeObjects(saveable, data)
     removeWithCtrlShift = saveable.visibleFeatures.removeWithCtrlShift
+    hideWithAltShift = saveable.visibleFeatures.hideWithAltShift
   }
 }
 
