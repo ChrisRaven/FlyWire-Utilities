@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.21
+// @version      0.22
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -9,11 +9,158 @@
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
 // @connect      services.itanna.io
+// @connect      prodv1.flywire-daf.com
 // @updateURL    https://raw.githubusercontent.com/ChrisRaven/FlyWire-Utilities/main/Utilities.user.js
 // @downloadURL  https://raw.githubusercontent.com/ChrisRaven/FlyWire-Utilities/main/Utilities.user.js
 // @homepageURL  https://github.com/ChrisRaven/FlyWire-Utilities
 // ==/UserScript==
 
+// addon prefix - used in all nodes, that have to have an ID
+const ap = 'kk-utilities-'
+
+const op = ap + 'option-'
+
+const TYPES = {
+  CHECKBOX: 1,
+  TEXT: 2,
+  NUMBER: 3,
+  TEXTAREA: 4,
+  RANGE: 5
+}
+
+const options = {
+  jumpToStart: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'jump-to-start',
+    featureSelector: `#${ap}jump-to-start`,
+    text: 'Jump to start'
+  },
+  addAtStart: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'add-point-at-start',
+    featureSelector: `#${ap}add-annotation-at-start-wrapper`,
+    text: 'Add point at start'
+  },
+  removePointsAtStart: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'remove-points-at-start',
+    featureSelector: `#${ap}remove-annotations-at-start-wrapper`,
+    text: 'Remove points at start'
+  },
+  resolutionButtons: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'resolution-buttons',
+    featureSelector: `#${ap}res-wrapper`,
+    text: 'Resolution buttons'
+  },
+  toggleBackground: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'toggle-background',
+    featureSelector: `#${ap}toggle-background`,
+    text: 'Background color switch'
+  },
+  displayNumberOfSegments: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'display-number-of-segments',
+    featureSelector: `#${ap}display-number-of-segments`,
+    text: 'Display number of segments'
+  },
+  showNeuropils: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'show-neuropils',
+    featureSelector: `#${ap}show-neuropils`,
+    text: 'Show neuropils'
+  },
+  copyPosition: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'copy-position',
+    featureSelector: `#${ap}copy-position-wrapper`,
+    text: 'Copy position'
+  },
+  removeWithCtrlShift: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'remove-with-ctrl-shift',
+    text: 'Remove segments when Ctrl and Shift are pressed'
+  },
+  hideWithAltShift: {
+    type: TYPES.CHECKBOX,
+    optionSelector: op + 'hide-with-alt-shift',
+    text: 'Hide segments when Alt and Shift are pressed'
+  },
+  neuropils: {
+    isGroup: true,
+    neuropils_opticLobe: {
+      type: TYPES.CHECKBOX,
+      optionSelector: op + 'neuropil-optic-lobe',
+      text: 'Show Optic Lobe'
+    },
+    neuropils_medulla: {
+      type: TYPES.CHECKBOX,
+      optionSelector: op + 'neuropil-medulla',
+      text: 'Show Medulla'
+    },
+    neuropils_lobula: {
+      type: TYPES.CHECKBOX,
+      optionSelector: op + 'neuropil-lobula',
+      text: 'Show Lobula'
+    },
+    neuropils_lobulaPlate: {
+      type: TYPES.CHECKBOX,
+      optionSelector: op + 'neuropil-lobula-plate',
+      text: 'Show Lobula Plate'
+    },
+    neuropils_accessoryMedulla: {
+      type: TYPES.CHECKBOX,
+      optionSelector: op + 'neuropil-accessory-medulla',
+      text: 'Show Accessory Medulla'
+    },
+    neuropils_blackBackgroundTransparency: {
+      type: TYPES.TEXT,
+      optionSelector: op + 'neuropil-transparency-on-black',
+      text: 'Neuropil transparency on black background'
+    },
+    neuropils_whiteBackgroundTransparency: {
+      type: TYPES.TEXT,
+      optionSelector: op + 'neuropil-transparency-on-white',
+      text: 'Neuropil transparency on white background'
+    }
+  }
+}
+let shift = false
+let ctrl = false
+let alt = false
+let removeWithCtrlShift = false
+let hideWithAltShift = false
+
+let saveable = {
+  roots: {},
+  leaves: {},
+  startCoords: null,
+  addAnnotationAtStartState: false,
+  removeAnnotationsAtStartState: false,
+  startAnnotationId: 0,
+  visibleFeatures: {
+    jumpToStart: true,
+    addAtStart: true,
+    removePointsAtStart: true,
+    resolutionButtons: true,
+    background: true,
+    neuropils: true,
+    copyPosition: true,
+    removeWithCtrlShift: false,
+    hideWithAltShift: false
+  },
+  neuropils_opticLobe: true,
+  neuropils_medulla: true,
+  neuropils_lobula: true,
+  neuropils_lobulaPlate: true,
+  neuropils_accessoryMedulla: true,
+  neuropils_blackBackgroundTransparency: 0.1,
+  neuropils_whiteBackgroundTransparency: 0.05,
+  currentResolutionButton: 1,
+  backgroundColor: 'black',
+  displayNumberOfSegments: true
+}
 if (!document.getElementById('dock-script')) {
   let script = document.createElement('script')
   script.id = 'dock-script'
@@ -21,17 +168,6 @@ if (!document.getElementById('dock-script')) {
   document.head.appendChild(script)
 }
 
-let wait = setInterval(() => {
-  if (unsafeWindow.dockIsReady) {
-    unsafeWindow.GM_xmlhttpRequest = GM_xmlhttpRequest
-    clearInterval(wait)
-    main()
-  }
-}, 100)
-
-
-// addon prefix - used in all nodes, that have to have an ID
-const ap = 'kk-utilities-'
 
 
 function fix_segmentColors_2022_07_15() {
@@ -86,7 +222,7 @@ function fix_optionsOrganization_2022_08_15() {
 
   if (settings.options) {
     update('kk-utilities-options-toggle-jump-to-start', 'jumpToStart')
-    update('kk-utilities-options-toggle-add-point-at-start', 'addPointAtStart')
+    update('kk-utilities-options-toggle-add-point-at-start', 'addAtStart')
     update('kk-utilities-options-toggle-remove-points-at-start', 'removePointsAtStart')
     update('kk-utilities-options-toggle-resolution-buttons', 'resolutionButtons')
     update('kk-utilities-options-toggle-toggle-background', 'toggleBackground')
@@ -114,12 +250,32 @@ function fix_optionsOrganization_2022_08_15() {
   Dock.ls.set('fix_optionsOrganization_2022_08_15', 'fixed')
 }
 
+function loadFromLS() {
+  let data = Dock.ls.get('utilities', true)
 
-let shift = false
-let ctrl = false
-let alt = false
-let removeWithCtrlShift = false
-let hideWithAltShift = false
+  if (data) {
+    Dock.mergeObjects(saveable, data)
+    removeWithCtrlShift = saveable.visibleFeatures.removeWithCtrlShift
+    hideWithAltShift = saveable.visibleFeatures.hideWithAltShift
+  }
+}
+
+
+function saveToLS() {
+  Dock.ls.set('utilities', saveable, true)
+}
+
+
+let batching = false
+if (DEV && true) { // set true for batching, set false for other tests
+  batching = true
+}
+
+document.addEventListener('dock-ready', () => {
+  unsafeWindow.GM_xmlhttpRequest = GM_xmlhttpRequest
+  main()
+})
+
 
 function main() {
   fix_optionsOrganization_2022_08_15()
@@ -161,7 +317,8 @@ function main() {
         margin-top: 9px;
         padding-left: 10px;
       }
-      `,
+    `,
+
     events: {
       '.neuroglancer-rendered-data-panel:first-of-type': {
         dblclick: {
@@ -260,8 +417,9 @@ function main() {
 
   let prevPrevId = null
   let prevId = null
+  
   viewer.mouseState.changed.add(() => {
-    if (ctrl && shift && removeWithCtrlShift) {
+    if (ctrl && shift && removeWithCtrlShift && !DEV) {
       const id = viewer.mouseState.pickedValue.toJSON()
       if (id && prevId && prevPrevId && prevId === id && prevPrevId === id) {
         const element = document.querySelector(`button[data-seg-id="${id}"]`)
@@ -289,162 +447,6 @@ function main() {
 }
 
 
-const op = ap + 'option-'
-
-const TYPES = {
-  CHECKBOX: 1,
-  TEXT: 2,
-  NUMBER: 3,
-  TEXTAREA: 4,
-  RANGE: 5
-}
-
-const options = {
-  jumpToStart: {
-    type: TYPES.CHECKBOX,
-    optionSelector: op + 'jump-to-start',
-    featureSelector: `#${ap}jump-to-start`,
-    text: 'Jump to start'
-  },
-  addPointAtStart: {
-    type: TYPES.CHECKBOX,
-    optionSelector: op + 'add-point-at-start',
-    featureSelector: `#${ap}add-annotation-at-start-wrapper`,
-    text: 'Add point at start'
-  },
-  removePointsAtStart: {
-    type: TYPES.CHECKBOX,
-    optionSelector: op + 'remove-points-at-start',
-    featureSelector: `#${ap}remove-annotations-at-start-wrapper`,
-    text: 'Remove points at start'
-  },
-  resolutionButtons: {
-    type: TYPES.CHECKBOX,
-    optionSelector: op + 'resolution-buttons',
-    featureSelector: `#${ap}res-wrapper`,
-    text: 'Resolution buttons'
-  },
-  toggleBackground: {
-    type: TYPES.CHECKBOX,
-    optionSelector: op + 'toggle-background',
-    featureSelector: `#${ap}toggle-background`,
-    text: 'Background color switch'
-  },
-  displayNumberOfSegments: {
-    type: TYPES.CHECKBOX,
-    optionSelector: op + 'display-number-of-segments',
-    featureSelector: `#${ap}display-number-of-segments`,
-    text: 'Display number of segments'
-  },
-  showNeuropils: {
-    type: TYPES.CHECKBOX,
-    optionSelector: op + 'show-neuropils',
-    featureSelector: `#${ap}show-neuropils`,
-    text: 'Show neuropils'
-  },
-  copyPosition: {
-    type: TYPES.CHECKBOX,
-    optionSelector: op + 'copy-position',
-    featureSelector: `#${ap}copy-position-wrapper`,
-    text: 'Copy position'
-  },
-  removeWithCtrlShift: {
-    type: TYPES.CHECKBOX,
-    optionSelector: op + 'remove-with-ctrl-shift',
-    text: 'Remove segments when Ctrl and Shift are pressed'
-  },
-  hideWithAltShift: {
-    type: TYPES.CHECKBOX,
-    optionSelector: op + 'hide-with-alt-shift',
-    text: 'Hide segments when Alt and Shift are pressed'
-  },
-  neuropils: {
-    isGroup: true,
-    neuropils_opticLobe: {
-      type: TYPES.CHECKBOX,
-      optionSelector: op + 'neuropil-optic-lobe',
-      text: 'Show Optic Lobe'
-    },
-    neuropils_medulla: {
-      type: TYPES.CHECKBOX,
-      optionSelector: op + 'neuropil-medulla',
-      text: 'Show Medulla'
-    },
-    neuropils_lobula: {
-      type: TYPES.CHECKBOX,
-      optionSelector: op + 'neuropil-lobula',
-      text: 'Show Lobula'
-    },
-    neuropils_lobulaPlate: {
-      type: TYPES.CHECKBOX,
-      optionSelector: op + 'neuropil-lobula-plate',
-      text: 'Show Lobula Plate'
-    },
-    neuropils_accessoryMedulla: {
-      type: TYPES.CHECKBOX,
-      optionSelector: op + 'neuropil-accessory-medulla',
-      text: 'Show Accessory Medulla'
-    },
-    neuropils_blackBackgroundTransparency: {
-      type: TYPES.TEXT,
-      optionSelector: op + 'neuropil-transparency-on-black',
-      text: 'Neuropil transparency on black background'
-    },
-    neuropils_whiteBackgroundTransparency: {
-      type: TYPES.TEXT,
-      optionSelector: op + 'neuropil-transparency-on-white',
-      text: 'Neuropil transparency on white background'
-    }
-  }
-}
-
-let saveable = {
-  roots: {},
-  leaves: {},
-  startCoords: null,
-  addAnnotationAtStartState: false,
-  removeAnnotationsAtStartState: false,
-  startAnnotationId: 0,
-  visibleFeatures: {
-    jumpToStart: true,
-    addPointAtStart: true,
-    removePointsAtStart: true,
-    resolutionButtons: true,
-    background: true,
-    neuropils: true,
-    copyPosition: true,
-    removeWithCtrlShift: false,
-    hideWithAltShift: false
-  },
-  neuropils_opticLobe: true,
-  neuropils_medulla: true,
-  neuropils_lobula: true,
-  neuropils_lobulaPlate: true,
-  neuropils_accessoryMedulla: true,
-  neuropils_blackBackgroundTransparency: 0.1,
-  neuropils_whiteBackgroundTransparency: 0.05,
-  currentResolutionButton: 1,
-  backgroundColor: 'black',
-  displayNumberOfSegments: true
-}
-
-
-function loadFromLS() {
-  let data = Dock.ls.get('utilities', true)
-
-  if (data) {
-    Dock.mergeObjects(saveable, data)
-    removeWithCtrlShift = saveable.visibleFeatures.removeWithCtrlShift
-    hideWithAltShift = saveable.visibleFeatures.hideWithAltShift
-  }
-}
-
-
-function saveToLS() {
-  Dock.ls.set('utilities', saveable, true)
-}
-
-
 function clearLists() {
   saveable.roots = {}
   saveable.leaves = {}
@@ -464,6 +466,52 @@ function assignMainTabEvents() {
   }, 0)
 }
 
+
+
+function fetchHandler(e) {
+  let response = e.detail.response
+  let body = e.detail && e.detail.params ? e.detail.params.body : null
+  let url = e.detail.url
+  if (response.code && response.code === 400) return console.error('Utilities: failed operation')
+
+  // we don't have to update segments after merge, because we still have a point from at least one of the merged fragments
+  // so we only need to update the rootId right before jumping
+  if (url.includes('split?')) {
+    saveSegmentsAfterSplit(body)
+    saveToLS()
+  }
+  else if (url.includes('proofreading_drive?')) {
+    saveSegmentAfterClaim(response)
+    deletePointsAtStart()
+    addAnnotationAtStart()
+    saveToLS()
+  }
+  else if (url.includes('split_preview?')) {
+    if (!response.illegal_split) return
+    let separatedSupervoxels = response.supervoxel_connected_components[2]
+    if (!separatedSupervoxels || !separatedSupervoxels.length) return
+
+    body = JSON.parse(body)
+    highlightSeparatedSupervoxels(body, separatedSupervoxels)
+  }
+}
+
+
+function highlightSeparatedSupervoxels(body, separatedSupervoxels) {
+  separatedSupervoxels.forEach(separatedSupervoxel => {
+    body.sinks.forEach(sink => {
+      if (sink[0] !== separatedSupervoxel) return
+
+      document.querySelector(`[data-seg-id="${separatedSupervoxel}"]`).style.border = '2px solid orange'
+    })
+
+    body.sources.forEach(source => {
+      if (source[0] !== separatedSupervoxel) return
+
+      document.querySelector(`[data-seg-id="${separatedSupervoxel}"]`).style.border = '2px solid orange'
+    })
+  })
+}
 
 function dblClickHandler() {
   let mouseCoords = Dock.getCurrentMouseCoords()
@@ -538,11 +586,11 @@ function jumpToSegmentNewWay(segId) {
   }
 }
 
-
 function jumpToSegmentButton(e) {
   if (!e.ctrlKey) return
 
   document.getElementsByClassName('selected-segment-button').forEach(el => el.classList.remove('selected-segment-button'))
+  // "selectedSeg" class is added automatically, whenever user hovers their mouse cursor over a segment in 2D or 3D
   const element = document.getElementsByClassName('selectedSeg')[0]
   if (!element) return
 
@@ -639,53 +687,6 @@ function openSegmentsInNewTab(ids) {
   openInNewTab(stateId)
 }
 
-
-function fetchHandler(e) {
-  let response = e.detail.response
-  let body = e.detail && e.detail.params ? e.detail.params.body : null
-  let url = e.detail.url
-  if (response.code && response.code === 400) return console.error('Utilities: failed operation')
-
-  // we don't have to update segments after merge, because we still have a point from at least one of the merged fragments
-  // so we only need to update the rootId right before jumping
-  if (url.includes('split?')) {
-    saveSegmentsAfterSplit(body)
-    saveToLS()
-  }
-  else if (url.includes('proofreading_drive?')) {
-    saveSegmentAfterClaim(response)
-    deletePointsAtStart()
-    addAnnotationAtStart()
-    saveToLS()
-  }
-  else if (url.includes('split_preview?')) {
-    if (!response.illegal_split) return
-    let separatedSupervoxels = response.supervoxel_connected_components[2]
-    if (!separatedSupervoxels || !separatedSupervoxels.length) return
-
-    body = JSON.parse(body)
-    highlightSeparatedSupervoxels(body, separatedSupervoxels)
-  }
-}
-
-
-function highlightSeparatedSupervoxels(body, separatedSupervoxels) {
-  separatedSupervoxels.forEach(separatedSupervoxel => {
-    body.sinks.forEach(sink => {
-      if (sink[0] !== separatedSupervoxel) return
-
-      document.querySelector(`[data-seg-id="${separatedSupervoxel}"]`).style.border = '2px solid orange'
-    })
-
-    body.sources.forEach(source => {
-      if (source[0] !== separatedSupervoxel) return
-
-      document.querySelector(`[data-seg-id="${separatedSupervoxel}"]`).style.border = '2px solid orange'
-    })
-  })
-}
-
-
 function saveSegmentAfterClaim(response) {
   clearLists()
   let coords = response.ngl_coordinates
@@ -728,6 +729,7 @@ function saveSegmentsAfterSplit(body) {
 }
 
 
+
 function hideAllButHandler(e) {
   let target = e.target
 
@@ -745,11 +747,13 @@ function hideAllButHandler(e) {
 }
 
 
+
 function jumpToStart() {
   if (!saveable.startCoords) return
 
   Dock.jumpToCoords(saveable.startCoords)
 }
+
 
 
 function changeResolution(e) {
@@ -798,6 +802,7 @@ function deleteSplitPoint(e) {// console.log('deleteSplitPoint.event', e)
 }
 
 
+
 function deleteAnnotationPoint(e) {
   if (!e.ctrlKey) return
 
@@ -809,30 +814,6 @@ function deleteAnnotationPoint(e) {
   }
 }
 
-
-function addAnnotationAtStart() {
-  if (!document.getElementById(`${ap}add-annotation-at-start`).checked) return
-  if (!Dock.annotations.getAnnotationLayer()) return
-  
-  // remove previous annotation if exists
-  if (saveable.startAnnotationId) {
-    Dock.annotations.remove(saveable.startAnnotationId)
-  }
-
-  let refId = Dock.annotations.add(saveable.startCoords, 0, 'START')
-
-  saveable.startAnnotationId = refId
-  saveToLS()
-}
-
-
-function deletePointsAtStart() {
-  if (!document.getElementById(`${ap}remove-annotations-at-start`).checked) return
-
-  deleteAnnotations()
-  deleteMulticutPoints()
-  deletePath()
-}
 
 
 function deleteAnnotations() {
@@ -875,6 +856,32 @@ function deletePath() {
 }
 
 
+
+function addAnnotationAtStart() {
+  if (!document.getElementById(`${ap}add-annotation-at-start`).checked) return
+  if (!Dock.annotations.getAnnotationLayer()) return
+  
+  // remove previous annotation if exists
+  if (saveable.startAnnotationId) {
+    Dock.annotations.remove(saveable.startAnnotationId)
+  }
+
+  let refId = Dock.annotations.add(saveable.startCoords, 0, 'START')
+
+  saveable.startAnnotationId = refId
+  saveToLS()
+}
+
+
+function deletePointsAtStart() {
+  if (!document.getElementById(`${ap}remove-annotations-at-start`).checked) return
+
+  deleteAnnotations()
+  deleteMulticutPoints()
+  deletePath()
+}
+
+
 function initFields() {
   document.getElementById(`${ap}add-annotation-at-start`).checked = saveable.addAnnotationAtStartState
   document.getElementById(`${ap}remove-annotations-at-start`).checked = saveable.removeAnnotationsAtStartState
@@ -904,6 +911,7 @@ function initOptions() {
 }
 
 
+
 function addAnnotationAtStartChanged() {
   saveable.addAnnotationAtStartState = document.getElementById(`${ap}add-annotation-at-start`).checked
   saveToLS()
@@ -914,6 +922,7 @@ function removeAnnotationsAtStartChanged() {
   saveable.removeAnnotationsAtStartState = document.getElementById(`${ap}remove-annotations-at-start`).checked
   saveToLS()
 }
+
 
 
 function toggleBackground() {
@@ -943,14 +952,13 @@ function toggleBackground() {
   saveToLS()
 }
 
-
 function showNeuropils() {
   const state = viewer.state.toJSON()
   const optionName = 'neuropils_' +  saveable.backgroundColor + 'BackgroundTransparency'
   const alpha = parseFloat(saveable[optionName])
 
   const opticLobe = {
-    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
+    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141_v3",
     "type": "segmentation",
     "objectAlpha": alpha,
     "segmentColors": {
@@ -958,10 +966,10 @@ function showNeuropils() {
       "6": "#2dc830",
       "14": "#367aba",
       "29": "#8736c9",
-      "36": "#3ed048",
-      "43": "#d3a936",
-      "51": "#3681ba",
-      "56": "#54348d"
+      "36": "#2dc830",
+      "43": "#d3b936",
+      "51": "#367aba",
+      "56": "#8736c9"
     },
     "segments": [
       "14",
@@ -981,7 +989,7 @@ function showNeuropils() {
   }
 
   const medulla = {
-    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
+    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141_v3",
     "type": "segmentation",
     "objectAlpha": alpha,
     "segmentColors": {
@@ -1000,7 +1008,7 @@ function showNeuropils() {
   }
 
   const lobula = {
-    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
+    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141_v3",
     "type": "segmentation",
     "objectAlpha": alpha,
     "segmentColors": {
@@ -1019,7 +1027,7 @@ function showNeuropils() {
   }
 
   const lobulaPlate = {
-    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
+    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141_v3",
     "type": "segmentation",
     "objectAlpha": alpha,
     "segmentColors": {
@@ -1038,7 +1046,8 @@ function showNeuropils() {
   }
 
   const accessoryMedulla = {
-    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141.surf_v2",
+    
+    "source": "precomputed://gs://flywire_neuropil_meshes/neuropils/neuropil_mesh_v141_v3",
     "type": "segmentation",
     "objectAlpha": alpha,
     "segmentColors": {
@@ -1127,6 +1136,38 @@ function changeNeuropilTransparency(backgroundColor, value) {
   saveToLS()
 }
 
+// created as an object passed to a map for readability purposes
+const layersNames = new Map(Object.entries({
+  43: 'left medulla',
+  51: 'left lobula',
+  6: 'left lobula plate',
+  56: 'left accessory medulla',
+
+  2: 'right medulla',
+  14: 'right lobula',
+  36: 'right lobula plate',
+  29: 'right accessory medulla'
+}))
+
+function nameLayers() {
+  viewer.selectedLayer.changed.add(check)
+  
+  function check() {
+    document.getElementsByClassName('segment-button').forEach(segment => {
+      const segId = segment.dataset.segId
+      if (layersNames.has(segId)) {
+        segment.textContent = layersNames.get(segId)
+      }
+    })
+  }
+
+  // for a case, when the first layer displayed after a refresh is one of the containing any of the neuropils
+  check()
+}
+
+document.addEventListener('dock-ready', nameLayers)
+
+
 
 function displayNumberOfSegments() {
   const id = ap + 'display-number-of-segments'
@@ -1160,6 +1201,7 @@ function displayNumberOfSegments() {
     counter.textContent = visibleSegments + ' (' + (visibleSegments + hiddenSegments) + ')'
   }
 }
+
 
 
 function copyPosition() {
@@ -1216,6 +1258,7 @@ function pastePosition() {
       }
     })
 }
+
 
 
 // below only code for options
