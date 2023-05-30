@@ -1,5 +1,5 @@
 let batching = false
-if (DEV && true) { // set true for batching, set false for other tests
+if (typeof DEV !== 'undefined' && DEV && true) { // set true for batching, set false for other tests
   batching = true
 }
 
