@@ -266,11 +266,6 @@ function saveToLS() {
 }
 
 
-let batching = false
-if (typeof DEV !== 'undefined' && DEV && true) { // set true for batching, set false for other tests
-  batching = true
-}
-
 document.addEventListener('dock-ready', () => {
   unsafeWindow.GM_xmlhttpRequest = GM_xmlhttpRequest
   main()
@@ -373,16 +368,6 @@ function main() {
   Dock.addToMainTab('segmentation_with_graph', assignMainTabEvents)
   Dock.addToRightTab('segmentation_with_graph', 'Rendering', displayNumberOfSegments)
 
-  if (typeof DEV !== 'undefined') {
-    let button = document.createElement('button')
-    button.textContent = 'Test'
-    let top = document.getElementsByClassName('neuroglancer-viewer-top-row')[0]
-    top.appendChild(button)
-    top.addEventListener('click', e => testClickHandler(e))
-
-    function testClickHandler(e) { }
-  }
-
   fix_segmentColors_2022_07_15()
   fix_visibilityOptions_2022_07_30()
 
@@ -419,7 +404,7 @@ function main() {
   let prevId = null
   
   viewer.mouseState.changed.add(() => {
-    if (ctrl && shift && removeWithCtrlShift && !DEV) {
+    if (ctrl && shift && removeWithCtrlShift) {
       const id = viewer.mouseState.pickedValue.toJSON()
       if (id && prevId && prevPrevId && prevId === id && prevPrevId === id) {
         const element = document.querySelector(`button[data-seg-id="${id}"]`)
