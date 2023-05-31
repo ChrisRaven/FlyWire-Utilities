@@ -5,6 +5,7 @@ document.addEventListener('dock-ready', () => {
 
 
 function main() {
+  // this fix at the beginning, because we have to fix the options, before accessing them in the rest of the main() function
   fix_optionsOrganization_2022_08_15()
   loadFromLS()
   let optionsDialog = Dock.dialog(optionsDialogSettings())
@@ -47,12 +48,6 @@ function main() {
     `,
 
     events: {
-      '.neuroglancer-rendered-data-panel:first-of-type': {
-        dblclick: {
-          handler: dblClickHandler,
-          singleNode: true
-        }
-      },
       '.neuroglancer-layer-side-panel': {
         contextmenu: (e) => {
           jumpToSegment(e)
@@ -102,6 +97,7 @@ function main() {
 
   fix_segmentColors_2022_07_15()
   fix_visibilityOptions_2022_07_30()
+  fix_removeLeavesAndRoots_2023_05_31()
 
   document.addEventListener('keydown', e => {
     if (e.ctrlKey) {
@@ -163,14 +159,6 @@ function main() {
   })
 }
 
-
-function clearLists() {
-  saveable.roots = {}
-  saveable.leaves = {}
-  saveToLS()
-}
-
-
 function assignMainTabEvents() {
   // setTimeout, because the changed event is called, when the elements aren't yet available in the DOM
   setTimeout(() => {
@@ -191,13 +179,7 @@ function fetchHandler(e) {
   let url = e.detail.url
   if (response.code && response.code === 400) return console.error('Utilities: failed operation')
 
-  // we don't have to update segments after merge, because we still have a point from at least one of the merged fragments
-  // so we only need to update the rootId right before jumping
-  if (url.includes('split?')) {
-    saveSegmentsAfterSplit(body)
-    saveToLS()
-  }
-  else if (url.includes('proofreading_drive?')) {
+  if (url.includes('proofreading_drive?')) {
     saveSegmentAfterClaim(response)
     deletePointsAtStart()
     addAnnotationAtStart()

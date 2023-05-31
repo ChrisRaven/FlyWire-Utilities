@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Utilities
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.22
+// @version      0.22.1
 // @description  Various functionalities for FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -133,8 +133,6 @@ let removeWithCtrlShift = false
 let hideWithAltShift = false
 
 let saveable = {
-  roots: {},
-  leaves: {},
   startCoords: null,
   addAnnotationAtStartState: false,
   removeAnnotationsAtStartState: false,
@@ -250,6 +248,19 @@ function fix_optionsOrganization_2022_08_15() {
   Dock.ls.set('fix_optionsOrganization_2022_08_15', 'fixed')
 }
 
+function fix_removeLeavesAndRoots_2023_05_31() {
+  if (Dock.ls.get('fix_removeLeavesAndRoots_2023_05_31') === 'fixed') return
+
+  let settings = Dock.ls.get('utilities', true)
+  if (!settings) return
+
+  delete settings.leaves
+  delete settings.roots
+
+  Dock.ls.set('utilities', settings, true)
+  Dock.ls.set('fix_removeLeavesAndRoots_2023_05_31', 'fixed')
+}
+
 function loadFromLS() {
   let data = Dock.ls.get('utilities', true)
 
@@ -273,6 +284,7 @@ document.addEventListener('dock-ready', () => {
 
 
 function main() {
+  // this fix at the beginning, because we have to fix the options, before accessing them in the rest of the main() function
   fix_optionsOrganization_2022_08_15()
   loadFromLS()
   let optionsDialog = Dock.dialog(optionsDialogSettings())
@@ -315,12 +327,6 @@ function main() {
     `,
 
     events: {
-      '.neuroglancer-rendered-data-panel:first-of-type': {
-        dblclick: {
-          handler: dblClickHandler,
-          singleNode: true
-        }
-      },
       '.neuroglancer-layer-side-panel': {
         contextmenu: (e) => {
           jumpToSegment(e)
@@ -370,6 +376,7 @@ function main() {
 
   fix_segmentColors_2022_07_15()
   fix_visibilityOptions_2022_07_30()
+  fix_removeLeavesAndRoots_2023_05_31()
 
   document.addEventListener('keydown', e => {
     if (e.ctrlKey) {
@@ -431,14 +438,6 @@ function main() {
   })
 }
 
-
-function clearLists() {
-  saveable.roots = {}
-  saveable.leaves = {}
-  saveToLS()
-}
-
-
 function assignMainTabEvents() {
   // setTimeout, because the changed event is called, when the elements aren't yet available in the DOM
   setTimeout(() => {
@@ -459,13 +458,7 @@ function fetchHandler(e) {
   let url = e.detail.url
   if (response.code && response.code === 400) return console.error('Utilities: failed operation')
 
-  // we don't have to update segments after merge, because we still have a point from at least one of the merged fragments
-  // so we only need to update the rootId right before jumping
-  if (url.includes('split?')) {
-    saveSegmentsAfterSplit(body)
-    saveToLS()
-  }
-  else if (url.includes('proofreading_drive?')) {
+  if (url.includes('proofreading_drive?')) {
     saveSegmentAfterClaim(response)
     deletePointsAtStart()
     addAnnotationAtStart()
@@ -497,78 +490,36 @@ function highlightSeparatedSupervoxels(body, separatedSupervoxels) {
     })
   })
 }
-
-function dblClickHandler() {
-  let mouseCoords = Dock.getCurrentMouseCoords()
-  let id = Dock.getHighlightedSupervoxelId()
-
-  // we save both leaves and roots. Leaves for permanent points of reference and roots for comparing with roots in the sidebar list
-  saveable.leaves[id] = mouseCoords
-  Dock.getRootId(id, rootId => {
-    saveable.roots[rootId] = mouseCoords
-    saveToLS()
-  })
-}
-
-
 function jumpToSegment(e) {
   if (!e.target.classList.contains('segment-button')) return
   if (e.ctrlKey) return
 
   let segId = Object.keys(e.target.dataset).length && e.target.dataset.segId
-  let coords = saveable.roots[segId]
 
-  if (coords) return Dock.jumpToCoords(coords)
+  viewer.selectedLayer.layer_.layer_.meshLayer.chunkManager.memoize.map.forEach(el => {
+    if (el.constructor.name !== 'GrapheneMeshSource') return
 
-  // if we don't have coords for a given rootId, we check every leaf to see, if any of them didn't change their rootId in the meantime
-  let numberOfConnectionsNeeded = Object.keys(saveable.leaves).length
+    for (const [key, value] of el.chunks) {
+      const keyAsInts = key.split(',').map(num => parseInt(num, 10))
+      const keyAsString = new Uint64(...keyAsInts).toJSON()
+      if (keyAsString !== segId) continue
 
-  for (const [leafId, coords] of Object.entries(saveable.leaves)) {
-    Dock.getRootId(leafId, rootId => {
-      if (rootId === segId) {
-        saveable.roots[rootId] = coords
-        saveToLS()
-        Dock.jumpToCoords(coords)
+      const firstFragmentId = value.fragmentIds[0].split(':')[0]
+
+      for (const [fragmentId, data] of value.source.fragmentSource.chunks) {
+        const id = fragmentId.split(':')[0]
+
+        if (id !== firstFragmentId) continue 
+        
+        const positions = data.meshData.vertexPositions
+        const point = Array.prototype.slice.call(positions, 0, 3)
+        const targetPosition = Dock.divideVec3(point, Dock.getVoxelSize())
+        Dock.jumpToCoords(targetPosition)
+        break
       }
-      else if (!--numberOfConnectionsNeeded) {
-        jumpToSegmentNewWay(segId)
-      }
-    })
-  }
-}
-
-
-function jumpToSegmentNewWay(segId) {
-  for (const [key, el] of viewer.chunkManager.memoize.map) {
-    if (!el.fragmentSource) continue
-
-    let requests = []
-    for (const [key, chunk] of el.fragmentSource.meshSource.chunks) {
-      let fragmentId = chunk.fragmentIds[0].split(':')[0]
-      if (parseInt(fragmentId, 10) < 1000) continue
-
-      for (const [key, chunk] of el.fragmentSource.chunks) {
-        if (key.split(':')[0] !== fragmentId) continue
-
-        let request = Dock.getRootId(fragmentId, rootId => {
-          if (!rootId || rootId !== segId) return
-
-          requests.forEach(request => {
-            request.abort()
-          })
-
-          let voxelSize = Dock.getVoxelSize()
-          let positions = chunk.meshData.vertexPositions
-          let x = positions[0] / voxelSize[0]
-          let y = positions[1] / voxelSize[1]
-          let z = positions[2] / voxelSize[2]
-          Dock.jumpToCoords([x, y, z])
-        })
-
-        requests.push(request)
-      }
+      break
     }
-  }
+  })
 }
 
 function jumpToSegmentButton(e) {
@@ -673,7 +624,6 @@ function openSegmentsInNewTab(ids) {
 }
 
 function saveSegmentAfterClaim(response) {
-  clearLists()
   let coords = response.ngl_coordinates
 
   if (!coords) return // happens, when there are no cells to proofread
@@ -685,34 +635,8 @@ function saveSegmentAfterClaim(response) {
     if (coord === '') continue
     xyz.push(parseInt(coord, 10))
   }
-  coords = xyz
-
-  let leafId = response.supervoxel_id
-  let rootId = response.root_id
-  saveable.leaves[leafId] = coords
-  saveable.roots[rootId] = coords
   saveable.startCoords = coords
 }
-
-
-function saveSegmentsAfterSplit(body) {
-  let voxelSize = Dock.getVoxelSize()
-
-  body = JSON.parse(body)
-
-  let point = body.sources[0]
-  let leafId = point[0]
-  point.shift() // the point is in format [segId, x, y, z]
-  let coords = Dock.divideVec3(point, voxelSize)
-  saveable.leaves[leafId] = coords
-
-  point = body.sinks[0]
-  leafId = point[0]
-  point.shift()
-  coords = Dock.divideVec3(point, voxelSize)
-  saveable.leaves[leafId] = coords
-}
-
 
 
 function hideAllButHandler(e) {

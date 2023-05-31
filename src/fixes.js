@@ -79,3 +79,16 @@ function fix_optionsOrganization_2022_08_15() {
   Dock.ls.set('utilities', settings, true)
   Dock.ls.set('fix_optionsOrganization_2022_08_15', 'fixed')
 }
+
+function fix_removeLeavesAndRoots_2023_05_31() {
+  if (Dock.ls.get('fix_removeLeavesAndRoots_2023_05_31') === 'fixed') return
+
+  let settings = Dock.ls.get('utilities', true)
+  if (!settings) return
+
+  delete settings.leaves
+  delete settings.roots
+
+  Dock.ls.set('utilities', settings, true)
+  Dock.ls.set('fix_removeLeavesAndRoots_2023_05_31', 'fixed')
+}

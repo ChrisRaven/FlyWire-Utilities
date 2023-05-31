@@ -5,8 +5,6 @@ let removeWithCtrlShift = false
 let hideWithAltShift = false
 
 let saveable = {
-  roots: {},
-  leaves: {},
   startCoords: null,
   addAnnotationAtStartState: false,
   removeAnnotationsAtStartState: false,
